@@ -1,6 +1,5 @@
 __pycache__
 .ipynb_checkpoints
 .cache
-models
-testing
+runs
 workspace/data/large

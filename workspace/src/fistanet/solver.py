@@ -22,14 +22,35 @@ import cv2
 px = 1/plt.rcParams['figure.dpi']
 
 
-def test_plot(x_in, pred, target, file_name):
-    fig, axs = plt.subplots(1, 3)
-    fig.set_figheight(300*px)
+def plot_loss_curves(train_losses, val_losses, save_path, file_name):
+    fig, axs = plt.subplots(1, 1)
+    fig.set_figheight(800*px)
     fig.set_figwidth(800*px)
-    axs[0].plot(x_in[0, :, :].cpu().squeeze().detach())
-    axs[1].plot(pred[0, :, :].cpu().squeeze().detach())
-    axs[2].plot(target[0, :, :].cpu().squeeze().detach())
-    plt.savefig(file_name)
+    axs.plot(train_losses, 'b-')
+    axs.plot(val_losses, 'r--')
+    if not os.path.exists(pjoin(save_path, 'plots', 'losses')):
+        os.makedirs(pjoin(save_path, 'plots', 'losses'))
+    plt.legend(labels=['Train Loss (MSE+Spa)', 'Validation Loss (MSE+Spa)'])
+    plt.savefig(pjoin(save_path, 'plots', 'losses', file_name))
+    plt.clf()
+    plt.close()
+
+def test_plot(x_in, pred, target, save_path, file_name):
+    fig, axs = plt.subplots(3, 3)
+    fig.set_figheight(1000*px)
+    fig.set_figwidth(800*px)
+    axs[0, 0].plot(x_in[0, :, :].cpu().squeeze().detach())
+    axs[0, 1].plot(pred[0, :, :].cpu().squeeze().detach())
+    axs[0, 2].plot(target[0, :, :].cpu().squeeze().detach())
+    axs[1, 0].plot(x_in[10, :, :].cpu().squeeze().detach())
+    axs[1, 1].plot(pred[10, :, :].cpu().squeeze().detach())
+    axs[1, 2].plot(target[10, :, :].cpu().squeeze().detach())
+    axs[2, 0].plot(x_in[21, :, :].cpu().squeeze().detach())
+    axs[2, 1].plot(pred[21, :, :].cpu().squeeze().detach())
+    axs[2, 2].plot(target[21, :, :].cpu().squeeze().detach())
+    if not os.path.exists(pjoin(save_path, 'plots', 'examples')):
+        os.makedirs(pjoin(save_path, 'plots', 'examples'))
+    plt.savefig(pjoin(save_path, 'plots', 'examples', file_name))
     plt.clf()
     plt.close()
     #pass
@@ -71,6 +92,7 @@ class Solver(object):
         self.data_dir = args['data_dir']
         self.num_epochs = args['num_epochs']
         self.start_epoch = args['start_epoch']
+        self.lambda_sp_loss = args['lambda_sp_loss']
         self.lr = args['lr']
         
         self.batch_size = batch_size
@@ -80,6 +102,8 @@ class Solver(object):
         
         self.train_losses = []
         self.val_losses = []
+        self.all_avg_train_losses = []
+        self.all_avg_val_losses = []
 
         # set different lr for regularization weights and network weights
         self.optimizer = optim.Adam([
@@ -122,9 +146,9 @@ class Solver(object):
 #            self.model.load_state_dict(torch.load(f))
     
     def save_model(self, iter_):
-        if not os.path.exists(self.save_path):
-            os.makedirs(self.save_path)
-        f = pjoin(self.save_path, 'epoch_{}.ckpt'.format(iter_))
+        if not os.path.exists(pjoin(self.save_path, 'models')):
+            os.makedirs(pjoin(self.save_path, 'models'))
+        f = pjoin(self.save_path, 'models', 'epoch_{}.ckpt'.format(iter_))
         checkpoint = { 
             'model': self.model.state_dict(),
             'optimizer': self.optimizer.state_dict(),
@@ -181,17 +205,15 @@ class Solver(object):
                 # predict and compute losses
                 if self.model_name == 'FISTANet':
                     [pred, loss_layers_sym, loss_st] = self.model(x_0, x_in, Phi, epoch)   # forward
-                    
-                    # test_plot(pred, '.\\testing\\pred_%d.png' % (epoch))
-                    # test_plot(y_target, '.\\testing\\target.png')
 
                     # Compute loss, data consistency and regularizer constraints
                     loss_discrepancy_1 = self.train_loss(pred, y_target)
                     loss_discrepancy_2 = l1_loss(pred, y_target, 0.1)
                     loss_discrepancy = loss_discrepancy_1 + loss_discrepancy_2
-                    loss_constraint = 0
-                    for k, _ in enumerate(loss_layers_sym, 0):
-                        loss_constraint += torch.mean(torch.pow(loss_layers_sym[k], 2))
+                    
+                    #loss_constraint = 0
+                    #for k, _ in enumerate(loss_layers_sym, 0):
+                    #    loss_constraint += torch.mean(torch.pow(loss_layers_sym[k], 2))
 
                     sparsity_constraint = 0
                     for k, _ in enumerate(loss_st, 0):
@@ -199,7 +221,7 @@ class Solver(object):
 
                     # loss = loss_discrepancy + gamma * loss_constraint
                     # CIKK: (14) --\/
-                    loss = loss_discrepancy# + 0.01 * loss_constraint + 0.001 * sparsity_constraint
+                    loss = loss_discrepancy + self.lambda_sp_loss * sparsity_constraint # + 0.01 * loss_constraint
 
                 self.model.zero_grad()
                 self.optimizer.zero_grad()
@@ -222,21 +244,16 @@ class Solver(object):
                                     self.optimizer.param_groups[0]["lr"],
                                     time.time() - start_time))
 
-                    print('\t\t\t\tDisc: {:.6f} \tConst: {:.6f}\t\tSpars: {:.6f}'
-                          ''.format(loss_discrepancy.data, 0.01*loss_constraint.data, 0.001 * sparsity_constraint.data))
+                    print('\t\t\t\tDisc: {:.6f}\t\tSpars: {:.6f}'
+                          ''.format(loss_discrepancy.data, self.lambda_sp_loss * sparsity_constraint.data))
 
 
                     # print weight values of model
                     if self.model_name == 'FISTANet':
                         print('\t TVw: {:.6f} | TVb: {:.6f} | GSw: {:.6f} | GSb: {:.6f} | TSUw: {:.6f} | TSUb: {:.6f}'
                               ''.format(self.model.w_theta.item(), self.model.b_theta.item(), self.model.w_mu.item(), self.model.b_mu.item(), self.model.w_rho.item(), self.model.b_rho.item()))
- 
-#                        print("Threshold value w: {}".format(self.model.w_theta))
-#                        print("Threshold value b: {}".format(self.model.b_theta))
-#                        print("Gradient step w: {}".format(self.model.w_mu))
-#                        print("Gradient step b: {}".format(self.model.b_mu))
-#                        print("Two step update w: {}".format(self.model.w_rho))
-#                        print("Two step update b: {}".format(self.model.b_rho))
+            
+            self.all_avg_train_losses.append(np.mean(self.train_losses))
             
             print('Validating epoch %d...' % epoch)
             self.val_losses = []
@@ -257,22 +274,29 @@ class Solver(object):
                     [pred, loss_layers_sym, loss_st] = self.model(x_0, x_in, Phi, epoch)   # forward
                     
                     # plot validation batch
-                    test_plot(x_in, pred, y_target, '.\\testing\\valid_ep%d_btch%d.png' % (epoch, batch_idy))
+                    test_plot(x_in, pred, y_target, self.save_path, 'valid_ep%d_btch%d.png' % (epoch, batch_idy))
 
                     # Compute loss, data consistency and regularizer constraints
                     loss_discrepancy_1 = self.train_loss(pred, y_target)
                     loss_discrepancy_2 = l1_loss(pred, y_target, 0.1)
                     loss_discrepancy = loss_discrepancy_1 + loss_discrepancy_2
-                    loss_constraint = 0
-                    for k, _ in enumerate(loss_layers_sym, 0):
-                        loss_constraint += torch.mean(torch.pow(loss_layers_sym[k], 2))
+                    #loss_constraint = 0
+                    #for k, _ in enumerate(loss_layers_sym, 0):
+                    #    loss_constraint += torch.mean(torch.pow(loss_layers_sym[k], 2))
                     sparsity_constraint = 0
                     for k, _ in enumerate(loss_st, 0):
                         sparsity_constraint += torch.mean(torch.abs(loss_st[k]))
-                    loss = loss_discrepancy + 0.01 * loss_constraint + 0.001 * sparsity_constraint
+                    loss = loss_discrepancy + self.lambda_sp_loss * sparsity_constraint #  + 0.01 * loss_constraint
                     
                     # add batch validation loss list
                     self.val_losses.append(loss.item())
+            
+            self.all_avg_val_losses.append(np.mean(self.val_losses))
+            
+            plot_loss_curves(self.all_avg_train_losses, self.all_avg_val_losses, self.save_path, 'train_val_losses_ep0.png')
+            
+            if epoch > 4:
+                plot_loss_curves(self.all_avg_train_losses[4:], self.all_avg_val_losses[4:], self.save_path, 'train_val_losses_ep5.png')
             
             print('-------------------------------------------')
             print('Epoch statistics:')

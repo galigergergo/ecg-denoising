@@ -1,0 +1,61 @@
+---------------------------------------------------------------------
+----------------------------- MEETING 1 -----------------------------
+---------------------------------------------------------------------
+
+Tabea mail:
+
+I trained two different dictionaries for the two differnt types of noise that I mostly considered, Baseline Wander (BW) and Muscle Artefacts (MA).
+
+The BW is the easier one. I just use the Basis Pusuit Denoising Algorithm (BPDN) to sparsly approximate the BW that is included in the noisy signal. Then I substract the BW approximation from the noisy signal and obtain the denoised one. The code is in the BW_denoising function of the complete_denoising_BW_MA file. 
+
+The Denoising of the MA is a little more complicated. The dictionary has a shape (13, 132, 100), basically representing 13 different dictionaries. Every input ECG is split up into frames of 132 samples and with a threshhold on the maximal deviation from the mean it is determined whether there is a QRS complex in the frame and what position it is on. The 132 samples are now again split up into 12 windows and we train one dictionary only on training data that has the R peak in the specific window. The 13th dictionary is for the ECG frames, that do not contain a QRS complex at all. The corresponding function is called MA_denoising.
+
+I attached the paper that describes these two approaches.
+
+For training and testing I used data from the BUT QDB (https://physionet.org/content/butqdb/1.0.0/#files-panel). I attached a numpy array with the chosen test signals (the ones with perfect quality rating).
+
+The noise that I added ontop of the clean signals came from the MIT-BIH Noise Stress Test Database (https://physionet.org/content/nstdb/1.0.0/).
+
+
+---------------------------------------------------------------------
+----------------------------- MEETING 2 -----------------------------
+---------------------------------------------------------------------
+
+QUESTIONS
+---------
+
+Data generation
+1. Is the noise file correct - bw.dat file from MIT-BIH with wfdb python module?
+2. Is the data generation process correct - augmenting the test signals with the BW noise?
+3. Is adding the noise correct - resampling to 250Hz + cutting both test and noise signals at independent random locations + summing them?
+4. What does an alpha sparse representation look like - array of sum 1 / with (0, 1) elements?
+
+Previous implementation
+1. How were the dictionaries learned - an alpha wasn't there learned as well?
+
+FISTA-Net implementation
+1. Is the gaussian noise assumption for epsilon correct - can we get rid of the W gradient operator? - not
+
+Additional things needed
+1. code for BPDN - received
+2. one (y, alpha) pair that works well with the dictionary - I can generate this with BPDN
+
+
+NOTES
+-----
+
+Később sparse representation lehet jobb lesz a bemenet sparse reprezentációját nézni
+szimmetria loss-t ki kell venni
+ha egy plusz ReLU-t betettünk valahol az Abel trf miatt
+nagy a learning rate
+egy batch-re túltanítani, mert úgy nagyon gyorsan overfittelnie kell
+
+
+---------------------------------------------------------------------
+----------------------------- MEETING 3 -----------------------------
+---------------------------------------------------------------------
+
+- The last 2/3 (138) of the test signals are all zero arrays
+- The total magnitudes of the non-zero test signals are very different from each other
+
+

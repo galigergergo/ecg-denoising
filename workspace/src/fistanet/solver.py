@@ -60,11 +60,12 @@ def tv_loss(img, tv_weight):
 
 
 class Solver(object):
-    def __init__(self, model, data_loader, val_loader, batch_size, args, test_data, test_images=None):
+    def __init__(self, model, Phi, data_loader, val_loader, batch_size, args, test_data, test_images=None):
         assert args['model_name'] in ['FISTANet']
 
         self.model_name = args['model_name']
         self.model = model
+        self.Phi = Phi
         self.data_loader = data_loader
         self.val_loader = val_loader
         self.data_dir = args['data_dir']
@@ -164,7 +165,7 @@ class Solver(object):
 
                 # initial image from one-step inversion
                 # CIKK: initialization (16) --\/
-                x_0 = torch.from_numpy(np.random.random((self.data_loader.batch_size, 100)))
+                x_0 = torch.from_numpy(np.random.random((x_in.shape[0], self.Phi.shape[1])))
                 x_0 = torch.unsqueeze(x_0, 2)
                 # print(x_0.shape)
 
@@ -174,10 +175,12 @@ class Solver(object):
                 x_0 = x_0.clone().detach().to(device=self.device)
                 x_in = x_in.clone().detach().to(device=self.device)
                 y_target = y_target.clone().detach().to(device=self.device)
-
+                
+                Phi = self.Phi.repeat((x_in.shape[0], 1, 1))
+                
                 # predict and compute losses
                 if self.model_name == 'FISTANet':
-                    [pred, loss_layers_sym, loss_st] = self.model(x_0, x_in, epoch)   # forward
+                    [pred, loss_layers_sym, loss_st] = self.model(x_0, x_in, Phi, epoch)   # forward
                     
                     # test_plot(pred, '.\\testing\\pred_%d.png' % (epoch))
                     # test_plot(y_target, '.\\testing\\target.png')
@@ -241,7 +244,7 @@ class Solver(object):
             with torch.no_grad():
                 for batch_idy, (x_in, y_target) in enumerate(self.val_loader):
                     x_in = torch.unsqueeze(x_in, 2)
-                    x_0 = torch.from_numpy(np.zeros((self.data_loader.batch_size, 100)))
+                    x_0 = torch.from_numpy(np.zeros((x_in.shape[0], 100)))
                     x_0 = torch.unsqueeze(x_0, 2)
                     y_target = torch.unsqueeze(y_target, 2)
 
@@ -249,7 +252,9 @@ class Solver(object):
                     x_in = x_in.clone().detach().to(device=self.device)
                     y_target = y_target.clone().detach().to(device=self.device)
                     
-                    [pred, loss_layers_sym, loss_st] = self.model(x_0, x_in, epoch)   # forward
+                    Phi = self.Phi.repeat((x_in.shape[0], 1, 1))
+                    
+                    [pred, loss_layers_sym, loss_st] = self.model(x_0, x_in, Phi, epoch)   # forward
                     
                     # plot validation batch
                     test_plot(x_in, pred, y_target, '.\\testing\\valid_ep%d_btch%d.png' % (epoch, batch_idy))
@@ -297,21 +302,11 @@ class Solver(object):
             #x_test_in = torch.unsqueeze(x_test_in, 1)
             x_test_in = x_test_in.clone().detach().to(device=self.device)
 
-            if self.model_name == "ISTANet":
+            if self.model_name == 'FISTANet':
                 x_test_img = self.test_data[1]
                 #x_test_img = torch.unsqueeze(x_test_img, 1)
                 x_test_img = x_test_img.clone().detach().to(device=self.device)
-                [test_res, _] = self.model(x_test_img, x_test_in, 999)
-
-            elif self.model_name == 'FISTANet':
-                x_test_img = self.test_data[1]
-                #x_test_img = torch.unsqueeze(x_test_img, 1)
-                x_test_img = x_test_img.clone().detach().to(device=self.device)
-                [test_res, _, _] = self.model(x_test_img, x_test_in, 999)
-
-            else:
-                # other nets needs to do one-step inversion
-                test_res = self.model(x_test_in)
+                [test_res, _, _] = self.model(x_test_img, x_test_in, Phi, 999)
 
         return test_res
     
@@ -385,7 +380,7 @@ class Solver(object):
                 x_in = x_in.clone().detach().to(device=self.device)
                 y_target = y_target.clone().detach().to(device=self.device)
 
-                [pred, loss_layers_sym, loss_st] = self.model(x_img, x_in, epoch)
+                [pred, loss_layers_sym, loss_st] = self.model(x_img, x_in, Phi, epoch)
 
                 # transform back from abel space to virtual wave space
                 preds = pred.cpu().detach().numpy()

@@ -101,10 +101,9 @@ class BasicBlock(nn.Module):
 
 
 class FISTANet(nn.Module):
-    def __init__(self, LayerNo, featureNo, Phi):
+    def __init__(self, LayerNo, featureNo):
         super(FISTANet, self).__init__()
         self.LayerNo = LayerNo
-        self.Phi = Phi
         onelayer = []
 
         self.bb = BasicBlock(features=featureNo)
@@ -126,7 +125,7 @@ class FISTANet(nn.Module):
 
         self.Sp = nn.Softplus()
 
-    def forward(self, x0, b, epoch):
+    def forward(self, x0, b, Phi, epoch):
         """
         Phi   : system matrix; default dim 2500 x 100;
         b     : measured signal vector; default dim 2500 x 1;
@@ -135,8 +134,8 @@ class FISTANet(nn.Module):
         # convert data format from (batch_size, channel, vector_row, vector_col) to (vector_row, batch_size)
         # NEW: in our case it is (batch_size, row, col)
         # b = torch.squeeze(b, 1)
-        PhiTPhi = torch.bmm(self.Phi.permute(0, 2, 1), self.Phi)
-        PhiTb = torch.bmm(self.Phi.permute(0, 2, 1), b)
+        PhiTPhi = torch.bmm(Phi.permute(0, 2, 1), Phi)
+        PhiTb = torch.bmm(Phi.permute(0, 2, 1), b)
         PhiTPhi = torch.unsqueeze(PhiTPhi, 1)
         PhiTb = torch.unsqueeze(PhiTb, 1)
         x0 = torch.unsqueeze(x0, 1)
@@ -165,6 +164,6 @@ class FISTANet(nn.Module):
 
         xnew = xnew.squeeze(1)
         # xnew[np.abs(xnew) < 1e-6] = 0
-        pred = b - torch.bmm(self.Phi, xnew)
+        pred = b - torch.bmm(Phi, xnew)
         
         return [pred, layers_sym, layers_st]

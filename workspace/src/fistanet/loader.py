@@ -80,7 +80,7 @@ class ECGDataset(Dataset):
         # load data files
         with open(pjoin(self.inp_dir, self.file_gen), 'rb') as file:
             data_temp_ = pkl.load(file)
-        self.data_sigs_ = np.load(pjoin(self.inp_dir, self.file_sigs))
+        sigs_temp_ = np.load(pjoin(self.inp_dir, self.file_sigs))
         bw_temp_ = wfdb.rdrecord(pjoin(self.inp_dir, self.file_bw))
 
         # save data generation parameters
@@ -89,6 +89,9 @@ class ECGDataset(Dataset):
         self.gen_sig_secs = data_temp_['params']['GEN_SIG_SECS']
         self.valid_inp_sigs = data_temp_['params']['VALID_INP_SIGS']
         self.gen_sig_len = self.inp_smpl_freq * self.gen_sig_secs
+        
+        # save only valid (non-zero) test signals
+        self.data_sigs_ = sigs_temp_[:, :self.valid_inp_sigs]
 
         # resample second channel of bw noise data to the input signal frequency
         self.data_bw_, _ = processing.resample_sig(bw_temp_.p_signal[:, 1], bw_temp_.fs, self.inp_smpl_freq)
@@ -96,8 +99,6 @@ class ECGDataset(Dataset):
         # perform tvt split
         smpl_start_i, self.smpl_no = self._calc_split_params(mode, self.tot_smpl_no, tvt_split)
         self.data_cuts_ = np.int_(data_temp_['data'][:, smpl_start_i:smpl_start_i+self.smpl_no])
-        print(self.data_cuts_)
-        print(self.data_cuts_[1, 0], self.data_cuts_[1, 0]+self.gen_sig_len, self.data_cuts_[0, 0])
         
         # transform the input tensor into required formats
         if self.transform:

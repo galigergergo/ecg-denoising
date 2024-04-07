@@ -164,6 +164,7 @@ class FISTANet(nn.Module):
             layers_sym.append(layer_sym)
 
         xnew = xnew.squeeze(1)
-        pred = torch.bmm(self.Phi, xnew)
+        # xnew[np.abs(xnew) < 1e-6] = 0
+        pred = b - torch.bmm(self.Phi, xnew)
         
         return [pred, layers_sym, layers_st]

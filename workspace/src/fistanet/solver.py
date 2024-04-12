@@ -23,6 +23,8 @@ px = 1/plt.rcParams['figure.dpi']
 
 
 def plot_loss_curves(train_losses, val_losses, save_path, file_name):
+    bpdn_est = np.load('data/generated/BW_alphas-BPDN_7000-10000_2024-04-07-12-43-32.npy')
+    
     fig, axs = plt.subplots(1, 1)
     fig.set_figheight(800*px)
     fig.set_figwidth(800*px)
@@ -34,7 +36,27 @@ def plot_loss_curves(train_losses, val_losses, save_path, file_name):
     plt.savefig(pjoin(save_path, 'plots', 'losses', file_name))
     plt.clf()
     plt.close()
-
+    
+    
+def test_plot_est(x_in, pred, target, save_path, file_name):
+    fig, axs = plt.subplots(1, 1)
+    fig.set_figheight(600*px)
+    fig.set_figwidth(1000*px)
+    bpdn_est = np.load('data/generated/BW_alphas-BPDN_7000-10000_2024-04-07-12-43-32.npy')
+    dictionary = np.load('data/steinbrinker/dictionary_BW_real_data.npy')
+    axs.plot(x_in[0, :, :].cpu().squeeze().detach(), label='INPUT', linewidth=0.5)
+    axs.plot(target[0, :, :].cpu().squeeze().detach(), label='TARGET', linewidth=0.5)
+    axs.plot(x_in[0, :, :].cpu().squeeze().detach()-dictionary@bpdn_est[1000, :], '--', label='BPDN', linewidth=0.5)
+    axs.plot(pred[0, :, :].cpu().squeeze().detach(), linestyle=(0,(1,10)), label='FISTA-Net', linewidth=2.5)
+    axs.legend()
+    if not os.path.exists(pjoin(save_path, 'plots', 'comp')):
+        os.makedirs(pjoin(save_path, 'plots', 'comp'))
+    plt.savefig(pjoin(save_path, 'plots', 'comp', file_name))
+    plt.clf()
+    plt.close()
+    #pass
+    
+    
 def test_plot(x_in, pred, target, save_path, file_name):
     fig, axs = plt.subplots(3, 3)
     fig.set_figheight(1000*px)
@@ -190,6 +212,7 @@ class Solver(object):
                 # initial image from one-step inversion
                 # CIKK: initialization (16) --\/
                 x_0 = torch.from_numpy(np.random.random((x_in.shape[0], self.Phi.shape[1])))
+                x_0 = torch.from_numpy(np.zeros((x_in.shape[0], self.Phi.shape[1])))
                 x_0 = torch.unsqueeze(x_0, 2)
                 # print(x_0.shape)
 
@@ -204,7 +227,7 @@ class Solver(object):
                 
                 # predict and compute losses
                 if self.model_name == 'FISTANet':
-                    [pred, loss_layers_sym, loss_st] = self.model(x_0, x_in, Phi, epoch)   # forward
+                    [pred, loss_layers_sym, loss_st] = self.model(x_0, x_in, Phi, epoch, self.save_path, 'train_ep%d_btch%d.png' % (epoch, batch_idx))   # forward
 
                     # Compute loss, data consistency and regularizer constraints
                     loss_discrepancy_1 = self.train_loss(pred, y_target)
@@ -271,9 +294,10 @@ class Solver(object):
                     
                     Phi = self.Phi.repeat((x_in.shape[0], 1, 1))
                     
-                    [pred, loss_layers_sym, loss_st] = self.model(x_0, x_in, Phi, epoch)   # forward
+                    [pred, loss_layers_sym, loss_st] = self.model(x_0, x_in, Phi, epoch, self.save_path, 'valid_ep%d_btch%d.png' % (epoch, batch_idx))   # forward
                     
                     # plot validation batch
+                    test_plot_est(x_in, pred, y_target, self.save_path, 'valid_ep%d_btch%d.png' % (epoch, batch_idy))
                     test_plot(x_in, pred, y_target, self.save_path, 'valid_ep%d_btch%d.png' % (epoch, batch_idy))
 
                     # Compute loss, data consistency and regularizer constraints

@@ -58,4 +58,8 @@ egy batch-re túltanítani, mert úgy nagyon gyorsan overfittelnie kell
 - The last 2/3 (138) of the test signals are all zero arrays
 - The total magnitudes of the non-zero test signals are very different from each other
 
-
+TODO:
+    1. Compare FISTA-Net sparse representation with BPDN
+        - generate BPDN estimations for validation data
+        - implement plotting comparison with with generated BPDN signals
+    2. Save all run parameters as a main log file, outside of model checkpoints

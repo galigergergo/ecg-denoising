@@ -15,6 +15,7 @@ import torch.nn.functional as F
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+from os.path import join as pjoin
 
 
 def initialize_weights(self):
@@ -98,8 +99,20 @@ class BasicBlock(nn.Module):
         symloss = x_D_est - x_D
 
         return [x_pred, symloss, x_st]
-
-
+    
+def test_plot_alpha(x_0, save_path, file_name):
+    fig, axs = plt.subplots(1, 1)
+    fig.set_figheight(600/plt.rcParams['figure.dpi'])
+    fig.set_figwidth(1000/plt.rcParams['figure.dpi'])
+    axs.bar(np.linspace(0, 1, x_0[0, :, :].cpu().squeeze().detach().shape[0]), x_0[0, :, :].cpu().squeeze().detach())
+    if not os.path.exists(pjoin(save_path, 'plots', 'alpha')):
+        os.makedirs(pjoin(save_path, 'plots', 'alpha'))
+    plt.savefig(pjoin(save_path, 'plots', 'alpha', file_name))
+    plt.clf()
+    plt.close()
+    #pass
+    
+    
 class FISTANet(nn.Module):
     def __init__(self, LayerNo, featureNo):
         super(FISTANet, self).__init__()
@@ -125,7 +138,7 @@ class FISTANet(nn.Module):
 
         self.Sp = nn.Softplus()
 
-    def forward(self, x0, b, Phi, epoch):
+    def forward(self, x0, b, Phi, epoch, save_path, file_name):
         """
         Phi   : system matrix; default dim 2500 x 100;
         b     : measured signal vector; default dim 2500 x 1;
@@ -165,5 +178,7 @@ class FISTANet(nn.Module):
         xnew = xnew.squeeze(1)
         # xnew[np.abs(xnew) < 1e-6] = 0
         pred = b - torch.bmm(Phi, xnew)
+        
+        test_plot_alpha(xnew, save_path, file_name)
         
         return [pred, layers_sym, layers_st]

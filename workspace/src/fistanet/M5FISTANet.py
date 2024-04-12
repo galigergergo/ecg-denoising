@@ -101,10 +101,12 @@ class BasicBlock(nn.Module):
         return [x_pred, symloss, x_st]
     
 def test_plot_alpha(x_0, save_path, file_name):
-    fig, axs = plt.subplots(1, 1)
-    fig.set_figheight(600/plt.rcParams['figure.dpi'])
+    fig, axs = plt.subplots(3, 1)
+    fig.set_figheight(1800/plt.rcParams['figure.dpi'])
     fig.set_figwidth(1000/plt.rcParams['figure.dpi'])
-    axs.bar(np.linspace(0, 1, x_0[0, :, :].cpu().squeeze().detach().shape[0]), x_0[0, :, :].cpu().squeeze().detach())
+    axs[0].plot(np.linspace(0, 1, x_0[0, :, :].cpu().squeeze().detach().shape[0]), x_0[0, :, :].cpu().squeeze().detach())
+    axs[1].plot(np.linspace(0, 1, x_0[0, :, :].cpu().squeeze().detach().shape[0]), x_0[500, :, :].cpu().squeeze().detach())
+    axs[2].plot(np.linspace(0, 1, x_0[0, :, :].cpu().squeeze().detach().shape[0]), x_0[950, :, :].cpu().squeeze().detach())
     if not os.path.exists(pjoin(save_path, 'plots', 'alpha')):
         os.makedirs(pjoin(save_path, 'plots', 'alpha'))
     plt.savefig(pjoin(save_path, 'plots', 'alpha', file_name))
@@ -179,6 +181,7 @@ class FISTANet(nn.Module):
         # xnew[np.abs(xnew) < 1e-6] = 0
         pred = b - torch.bmm(Phi, xnew)
         
-        test_plot_alpha(xnew, save_path, file_name)
+        #if file_name[0] == 'v':   # validation only
+        #    test_plot_alpha(xnew, save_path, file_name)
         
         return [pred, layers_sym, layers_st]

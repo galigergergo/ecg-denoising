@@ -23,8 +23,6 @@ px = 1/plt.rcParams['figure.dpi']
 
 
 def plot_loss_curves(train_losses, val_losses, save_path, file_name):
-    bpdn_est = np.load('data/generated/BW_alphas-BPDN_7000-10000_2024-04-07-12-43-32.npy')
-    
     fig, axs = plt.subplots(1, 1)
     fig.set_figheight(800*px)
     fig.set_figwidth(800*px)
@@ -39,16 +37,26 @@ def plot_loss_curves(train_losses, val_losses, save_path, file_name):
     
     
 def test_plot_est(x_in, pred, target, save_path, file_name):
-    fig, axs = plt.subplots(1, 1)
-    fig.set_figheight(600*px)
+    fig, axs = plt.subplots(3, 1)
+    fig.set_figheight(2000*px)
     fig.set_figwidth(1000*px)
-    bpdn_est = np.load('data/generated/BW_alphas-BPDN_7000-10000_2024-04-07-12-43-32.npy')
+    bpdn_est = np.load('data/generated/BW_alphas-BPDN_10000_2024-04-07-12-43-32.npy')
     dictionary = np.load('data/steinbrinker/dictionary_BW_real_data.npy')
-    axs.plot(x_in[0, :, :].cpu().squeeze().detach(), label='INPUT', linewidth=0.5)
-    axs.plot(target[0, :, :].cpu().squeeze().detach(), label='TARGET', linewidth=0.5)
-    axs.plot(x_in[0, :, :].cpu().squeeze().detach()-dictionary@bpdn_est[1000, :], '--', label='BPDN', linewidth=0.5)
-    axs.plot(pred[0, :, :].cpu().squeeze().detach(), linestyle=(0,(1,10)), label='FISTA-Net', linewidth=2.5)
-    axs.legend()
+    axs[0].plot(x_in[0, :, :].cpu().squeeze().detach(), label='INPUT', linewidth=0.5)
+    axs[0].plot(target[0, :, :].cpu().squeeze().detach(), label='TARGET', linewidth=0.5)
+    axs[0].plot(x_in[0, :, :].cpu().squeeze().detach()-dictionary@bpdn_est[8000, :], '--', label='BPDN', linewidth=0.5)
+    axs[0].plot(pred[0, :, :].cpu().squeeze().detach(), linestyle=(0,(1,10)), label='FISTA-Net', linewidth=2.5)
+    axs[0].legend()
+    axs[1].plot(x_in[500, :, :].cpu().squeeze().detach(), label='INPUT', linewidth=0.5)
+    axs[1].plot(target[500, :, :].cpu().squeeze().detach(), label='TARGET', linewidth=0.5)
+    axs[1].plot(x_in[500, :, :].cpu().squeeze().detach()-dictionary@bpdn_est[8500, :], '--', label='BPDN', linewidth=0.5)
+    axs[1].plot(pred[500, :, :].cpu().squeeze().detach(), linestyle=(0,(1,10)), label='FISTA-Net', linewidth=2.5)
+    axs[1].legend()
+    axs[2].plot(x_in[950, :, :].cpu().squeeze().detach(), label='INPUT', linewidth=0.5)
+    axs[2].plot(target[950, :, :].cpu().squeeze().detach(), label='TARGET', linewidth=0.5)
+    axs[2].plot(x_in[950, :, :].cpu().squeeze().detach()-dictionary@bpdn_est[8950, :], '--', label='BPDN', linewidth=0.5)
+    axs[2].plot(pred[950, :, :].cpu().squeeze().detach(), linestyle=(0,(1,10)), label='FISTA-Net', linewidth=2.5)
+    axs[2].legend()
     if not os.path.exists(pjoin(save_path, 'plots', 'comp')):
         os.makedirs(pjoin(save_path, 'plots', 'comp'))
     plt.savefig(pjoin(save_path, 'plots', 'comp', file_name))
@@ -203,7 +211,7 @@ class Solver(object):
 
             self.model.train(True)
 
-            for batch_idx, (x_in, y_target) in enumerate(self.data_loader):
+            for batch_idx, (x_in, x_0, y_target) in enumerate(self.data_loader):
 
                 # measured vector (104*1); add channels
                 # CIKK: vector b (16) --\/
@@ -211,8 +219,8 @@ class Solver(object):
 
                 # initial image from one-step inversion
                 # CIKK: initialization (16) --\/
-                x_0 = torch.from_numpy(np.random.random((x_in.shape[0], self.Phi.shape[1])))
-                x_0 = torch.from_numpy(np.zeros((x_in.shape[0], self.Phi.shape[1])))
+                # x_0 = torch.from_numpy(np.random.random((x_in.shape[0], self.Phi.shape[1])))
+                # x_0 = torch.from_numpy(np.zeros((x_in.shape[0], self.Phi.shape[1])))
                 x_0 = torch.unsqueeze(x_0, 2)
                 # print(x_0.shape)
 
@@ -282,9 +290,9 @@ class Solver(object):
             self.val_losses = []
             self.model.eval()
             with torch.no_grad():
-                for batch_idy, (x_in, y_target) in enumerate(self.val_loader):
+                for batch_idy, (x_in, x_0, y_target) in enumerate(self.val_loader):
                     x_in = torch.unsqueeze(x_in, 2)
-                    x_0 = torch.from_numpy(np.zeros((x_in.shape[0], 100)))
+                    # x_00 = torch.from_numpy(np.zeros((x_in.shape[0], 100)))
                     x_0 = torch.unsqueeze(x_0, 2)
                     y_target = torch.unsqueeze(y_target, 2)
 
@@ -297,8 +305,9 @@ class Solver(object):
                     [pred, loss_layers_sym, loss_st] = self.model(x_0, x_in, Phi, epoch, self.save_path, 'valid_ep%d_btch%d.png' % (epoch, batch_idx))   # forward
                     
                     # plot validation batch
-                    test_plot_est(x_in, pred, y_target, self.save_path, 'valid_ep%d_btch%d.png' % (epoch, batch_idy))
-                    test_plot(x_in, pred, y_target, self.save_path, 'valid_ep%d_btch%d.png' % (epoch, batch_idy))
+                    if not epoch % 10:
+                        test_plot_est(x_in, pred, y_target, self.save_path, 'valid_ep%d_btch%d.png' % (epoch, batch_idy))
+                        test_plot(x_in, pred, y_target, self.save_path, 'valid_ep%d_btch%d.png' % (epoch, batch_idy))
 
                     # Compute loss, data consistency and regularizer constraints
                     loss_discrepancy_1 = self.train_loss(pred, y_target)
@@ -318,9 +327,12 @@ class Solver(object):
             self.all_avg_val_losses.append(np.mean(self.val_losses))
             
             plot_loss_curves(self.all_avg_train_losses, self.all_avg_val_losses, self.save_path, 'train_val_losses_ep0.png')
-            
             if epoch > 4:
                 plot_loss_curves(self.all_avg_train_losses[4:], self.all_avg_val_losses[4:], self.save_path, 'train_val_losses_ep5.png')
+            if epoch > 19:
+                plot_loss_curves(self.all_avg_train_losses[19:], self.all_avg_val_losses[19:], self.save_path, 'train_val_losses_ep20.png')
+            if epoch > 39:
+                plot_loss_curves(self.all_avg_train_losses[39:], self.all_avg_val_losses[39:], self.save_path, 'train_val_losses_ep40.png')
             
             print('-------------------------------------------')
             print('Epoch statistics:')

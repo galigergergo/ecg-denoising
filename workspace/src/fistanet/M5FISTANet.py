@@ -86,7 +86,8 @@ class BasicBlock(nn.Module):
         x_G = self.conv_G(x_backward)
 
         # prediction output (skip connection); non-negative output
-        x_pred = F.relu(x_input + x_G)
+        # x_pred = F.relu(x_input + x_G)
+        x_pred = x_input + x_G
 
         # compute symmetry loss
         x = self.conv1_backward(x_forward)
@@ -100,13 +101,25 @@ class BasicBlock(nn.Module):
 
         return [x_pred, symloss, x_st]
     
+# def test_plot_alpha(x_0, save_path, file_name):
+#     fig, axs = plt.subplots(3, 1)
+#     fig.set_figheight(1800/plt.rcParams['figure.dpi'])
+#     fig.set_figwidth(1000/plt.rcParams['figure.dpi'])
+#     axs[0].plot(np.linspace(0, 1, x_0[0, :, :].cpu().squeeze().detach().shape[0]), x_0[0, :, :].cpu().squeeze().detach())
+#     axs[1].plot(np.linspace(0, 1, x_0[0, :, :].cpu().squeeze().detach().shape[0]), x_0[500, :, :].cpu().squeeze().detach())
+#     axs[2].plot(np.linspace(0, 1, x_0[0, :, :].cpu().squeeze().detach().shape[0]), x_0[950, :, :].cpu().squeeze().detach())
+#     if not os.path.exists(pjoin(save_path, 'plots', 'alpha')):
+#         os.makedirs(pjoin(save_path, 'plots', 'alpha'))
+#     plt.savefig(pjoin(save_path, 'plots', 'alpha', file_name))
+#     plt.clf()
+#     plt.close()
+#     #pass
+
 def test_plot_alpha(x_0, save_path, file_name):
-    fig, axs = plt.subplots(3, 1)
-    fig.set_figheight(1800/plt.rcParams['figure.dpi'])
+    fig, axs = plt.subplots(1, 1)
+    fig.set_figheight(600/plt.rcParams['figure.dpi'])
     fig.set_figwidth(1000/plt.rcParams['figure.dpi'])
-    axs[0].plot(np.linspace(0, 1, x_0[0, :, :].cpu().squeeze().detach().shape[0]), x_0[0, :, :].cpu().squeeze().detach())
-    axs[1].plot(np.linspace(0, 1, x_0[0, :, :].cpu().squeeze().detach().shape[0]), x_0[500, :, :].cpu().squeeze().detach())
-    axs[2].plot(np.linspace(0, 1, x_0[0, :, :].cpu().squeeze().detach().shape[0]), x_0[950, :, :].cpu().squeeze().detach())
+    axs.plot(np.linspace(0, 1, x_0[0, :, :].cpu().squeeze().detach().shape[0]), x_0[0, :, :].cpu().squeeze().detach())
     if not os.path.exists(pjoin(save_path, 'plots', 'alpha')):
         os.makedirs(pjoin(save_path, 'plots', 'alpha'))
     plt.savefig(pjoin(save_path, 'plots', 'alpha', file_name))
@@ -168,7 +181,7 @@ class FISTANet(nn.Module):
             theta_ = self.w_theta * i + self.b_theta
             mu_ = self.w_mu * i + self.b_mu
             # CIKK: (8a) + (8b) - nagy iteráció rész --\/
-            [xnew, layer_sym, layer_st] = self.fcs[i](y, PhiTPhi, PhiTb, mu_, theta_, epoch)
+            [xnew, layer_sym, layer_st] = self.fcs[i](y, PhiTPhi, PhiTb, mu_, theta_, epoch)            
             # CIKK: - rho update rész --\/
             rho_ = (self.Sp(self.w_rho * i + self.b_rho) - self.Sp(self.b_rho)) / self.Sp(self.w_rho * i + self.b_rho)
             # CIKK: (8c) - következő réteg bemenetének számolása --\/
@@ -179,9 +192,10 @@ class FISTANet(nn.Module):
 
         xnew = xnew.squeeze(1)
         # xnew[np.abs(xnew) < 1e-6] = 0
+        # xnew = torch.div(xnew, 10)
         pred = b - torch.bmm(Phi, xnew)
         
-        #if file_name[0] == 'v':   # validation only
-        #    test_plot_alpha(xnew, save_path, file_name)
+        if file_name[0] == 'v':   # validation only
+           test_plot_alpha(xnew, save_path, file_name)
         
         return [pred, layers_sym, layers_st]

@@ -65,6 +65,24 @@ def test_plot_est(x_in, pred, target, save_path, file_name):
     #pass
     
     
+# def test_plot_est(x_in, pred, target, save_path, file_name):
+#     fig, axs = plt.subplots(1, 1)
+#     fig.set_figheight(600*px)
+#     fig.set_figwidth(1000*px)
+#     bpdn_est = np.load('data/generated/BW_alphas-BPDN_10000_2024-04-07-12-43-32.npy')
+#     dictionary = np.load('data/steinbrinker/dictionary_BW_real_data.npy')
+#     axs.plot(x_in[0, :, :].cpu().squeeze().detach(), label='INPUT', linewidth=0.5)
+#     axs.plot(target[0, :, :].cpu().squeeze().detach(), label='TARGET', linewidth=0.5)
+#     axs.plot(x_in[0, :, :].cpu().squeeze().detach()-dictionary@bpdn_est[8000, :], '--', label='BPDN', linewidth=0.5)
+#     axs.plot(pred[0, :, :].cpu().squeeze().detach(), linestyle=(0,(1,10)), label='FISTA-Net', linewidth=2.5)
+#     if not os.path.exists(pjoin(save_path, 'plots', 'comp')):
+#         os.makedirs(pjoin(save_path, 'plots', 'comp'))
+#     plt.savefig(pjoin(save_path, 'plots', 'comp', file_name))
+#     plt.clf()
+#     plt.close()
+#     #pass
+    
+    
 def test_plot(x_in, pred, target, save_path, file_name):
     fig, axs = plt.subplots(3, 3)
     fig.set_figheight(1000*px)
@@ -122,7 +140,9 @@ class Solver(object):
         self.data_dir = args['data_dir']
         self.num_epochs = args['num_epochs']
         self.start_epoch = args['start_epoch']
+        self.start_run = args['start_run']
         self.lambda_sp_loss = args['lambda_sp_loss']
+        self.lambda_sym_loss = args['lambda_sym_loss']
         self.lr = args['lr']
         
         self.batch_size = batch_size
@@ -187,8 +207,8 @@ class Solver(object):
         torch.save(checkpoint, f)
 
     def load_model(self, iter_):
-        f = pjoin(self.save_path, 'epoch_{}.ckpt'.format(iter_))
-        checkpoint = torch.load(f,  map_location=torch.device('cpu'))
+        f = pjoin(self.save_path, 'models', 'epoch_{}.ckpt'.format(iter_))
+        checkpoint = torch.load(f,  map_location=torch.device('cuda'))
         self.model.load_state_dict(checkpoint['model'])
         self.optimizer.load_state_dict(checkpoint['optimizer'])
         
@@ -203,6 +223,9 @@ class Solver(object):
         start_time = time.time()
         # set up Tensorboard
         # writer = SummaryWriter('runs/'+self.model_name)
+        
+        if self.start_epoch:
+            self.load_model(self.start_epoch)
 
         for epoch in range(1 + self.start_epoch, self.num_epochs + 1 + self.start_epoch):
             print('Training epoch %d...' % epoch)
@@ -211,7 +234,7 @@ class Solver(object):
 
             self.model.train(True)
 
-            for batch_idx, (x_in, x_0, y_target) in enumerate(self.data_loader):
+            for batch_idx, (x_in, y_target) in enumerate(self.data_loader):
 
                 # measured vector (104*1); add channels
                 # CIKK: vector b (16) --\/
@@ -221,30 +244,36 @@ class Solver(object):
                 # CIKK: initialization (16) --\/
                 # x_0 = torch.from_numpy(np.random.random((x_in.shape[0], self.Phi.shape[1])))
                 # x_0 = torch.from_numpy(np.zeros((x_in.shape[0], self.Phi.shape[1])))
-                x_0 = torch.unsqueeze(x_0, 2)
+                # x_0 = torch.unsqueeze(x_0, 2)
                 # print(x_0.shape)
 
                 # target image (64*64)
                 y_target = torch.unsqueeze(y_target, 2)
 
-                x_0 = x_0.clone().detach().to(device=self.device)
+                # x_0 = x_0.clone().detach().to(device=self.device)
                 x_in = x_in.clone().detach().to(device=self.device)
                 y_target = y_target.clone().detach().to(device=self.device)
                 
                 Phi = self.Phi.repeat((x_in.shape[0], 1, 1))
                 
+                x_0 = torch.bmm(Phi.permute(0, 2, 1), x_in)
+                                
                 # predict and compute losses
                 if self.model_name == 'FISTANet':
                     [pred, loss_layers_sym, loss_st] = self.model(x_0, x_in, Phi, epoch, self.save_path, 'train_ep%d_btch%d.png' % (epoch, batch_idx))   # forward
-
+                
+                    # plot training batch
+                    # if not epoch % 10:
+                    #     test_plot_est(x_in, pred, y_target, self.save_path, 'train_ep%d_btch%d.png' % (epoch, batch_idy))
+                    
                     # Compute loss, data consistency and regularizer constraints
                     loss_discrepancy_1 = self.train_loss(pred, y_target)
                     loss_discrepancy_2 = l1_loss(pred, y_target, 0.1)
                     loss_discrepancy = loss_discrepancy_1 + loss_discrepancy_2
                     
-                    #loss_constraint = 0
-                    #for k, _ in enumerate(loss_layers_sym, 0):
-                    #    loss_constraint += torch.mean(torch.pow(loss_layers_sym[k], 2))
+                    loss_constraint = 0
+                    for k, _ in enumerate(loss_layers_sym, 0):
+                       loss_constraint += torch.mean(torch.pow(loss_layers_sym[k], 2))
 
                     sparsity_constraint = 0
                     for k, _ in enumerate(loss_st, 0):
@@ -252,7 +281,7 @@ class Solver(object):
 
                     # loss = loss_discrepancy + gamma * loss_constraint
                     # CIKK: (14) --\/
-                    loss = loss_discrepancy + self.lambda_sp_loss * sparsity_constraint # + 0.01 * loss_constraint
+                    loss = loss_discrepancy + self.lambda_sym_loss * loss_constraint + self.lambda_sp_loss * sparsity_constraint 
 
                 self.model.zero_grad()
                 self.optimizer.zero_grad()
@@ -261,6 +290,7 @@ class Solver(object):
                 loss.backward()
                 self.optimizer.step()
                 self.train_losses.append(loss.item())
+                    
 
                 # print processes
                 if batch_idx % self.log_interval == 0:
@@ -275,8 +305,8 @@ class Solver(object):
                                     self.optimizer.param_groups[0]["lr"],
                                     time.time() - start_time))
 
-                    print('\t\t\t\tDisc: {:.6f}\t\tSpars: {:.6f}'
-                          ''.format(loss_discrepancy.data, self.lambda_sp_loss * sparsity_constraint.data))
+                    print('\t\t\t\tDisc: {:.6f}\t\tSym: {:.6f}\t\tSpars: {:.6f}'
+                          ''.format(loss_discrepancy.data, self.lambda_sym_loss * loss_constraint.data, self.lambda_sp_loss * sparsity_constraint.data))
 
 
                     # print weight values of model
@@ -290,9 +320,9 @@ class Solver(object):
             self.val_losses = []
             self.model.eval()
             with torch.no_grad():
-                for batch_idy, (x_in, x_0, y_target) in enumerate(self.val_loader):
+                for batch_idy, (x_in, y_target) in enumerate(self.val_loader):
                     x_in = torch.unsqueeze(x_in, 2)
-                    # x_00 = torch.from_numpy(np.zeros((x_in.shape[0], 100)))
+                    x_0 = torch.from_numpy(np.zeros((x_in.shape[0], 100)))
                     x_0 = torch.unsqueeze(x_0, 2)
                     y_target = torch.unsqueeze(y_target, 2)
 
@@ -307,7 +337,7 @@ class Solver(object):
                     # plot validation batch
                     if not epoch % 10:
                         test_plot_est(x_in, pred, y_target, self.save_path, 'valid_ep%d_btch%d.png' % (epoch, batch_idy))
-                        test_plot(x_in, pred, y_target, self.save_path, 'valid_ep%d_btch%d.png' % (epoch, batch_idy))
+                        # test_plot(x_in, pred, y_target, self.save_path, 'valid_ep%d_btch%d.png' % (epoch, batch_idy))
 
                     # Compute loss, data consistency and regularizer constraints
                     loss_discrepancy_1 = self.train_loss(pred, y_target)

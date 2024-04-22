@@ -67,14 +67,15 @@ class ECGDataset(Dataset):
                 return smpl_start_i, last_smpl_i - smpl_start_i
             smpl_start_i = last_smpl_i
     
-    def __init__(self, mode, data_dir, file_gen, file_sigs, file_bw, file_bpdn, tvt_split, transform=None):
+    def __init__(self, mode, data_dir, noise_type, file_gen, file_sigs, file_noise, file_bpdn, tvt_split, transform=None):
         assert mode in ['train', 'valid', 'test']
         self.mode = mode
         
         self.inp_dir = data_dir
         self.file_gen = file_gen
         self.file_sigs = file_sigs
-        self.file_bw = file_bw
+        self.noise_type = noise_type
+        self.file_noise = file_noise
         self.file_bpdn = file_bpdn
         self.transform = transform
 
@@ -82,7 +83,6 @@ class ECGDataset(Dataset):
         with open(pjoin(self.inp_dir, self.file_gen), 'rb') as file:
             data_temp_ = pkl.load(file)
         sigs_temp_ = np.load(pjoin(self.inp_dir, self.file_sigs))
-        bw_temp_ = wfdb.rdrecord(pjoin(self.inp_dir, self.file_bw))
         bpdn_temp_ = np.load(pjoin(self.inp_dir, self.file_bpdn))
 
         # save data generation parameters
@@ -91,12 +91,16 @@ class ECGDataset(Dataset):
         self.gen_sig_secs = data_temp_['params']['GEN_SIG_SECS']
         self.valid_inp_sigs = data_temp_['params']['VALID_INP_SIGS']
         self.gen_sig_len = self.inp_smpl_freq * self.gen_sig_secs
+
+        # load and process relevant noise data
+        if self.noise_type == 'bw':
+            noise_temp_ = wfdb.rdrecord(pjoin(self.inp_dir, self.file_noise))
+            self.data_noise_, _ = processing.resample_sig(noise_temp_.p_signal[:, 1], noise_temp_.fs, self.inp_smpl_freq)
+        elif self.noise_type == 'gauss':   
+            self.data_noise_ = np.load(pjoin(self.inp_dir, self.file_noise))
         
         # save only valid (non-zero) test signals
         self.data_sigs_ = sigs_temp_[:, :self.valid_inp_sigs]
-
-        # resample second channel of bw noise data to the input signal frequency
-        self.data_bw_, _ = processing.resample_sig(bw_temp_.p_signal[:, 1], bw_temp_.fs, self.inp_smpl_freq)
         
         # perform tvt split
         smpl_start_i, self.smpl_no = self._calc_split_params(mode, self.tot_smpl_no, tvt_split)
@@ -112,13 +116,13 @@ class ECGDataset(Dataset):
 
     def __getitem__(self, idx):
         sig_item = self.data_sigs_[self.data_cuts_[1, idx]:self.data_cuts_[1, idx]+self.gen_sig_len, self.data_cuts_[0, idx]]
-        return sig_item + self.data_bw_[self.data_cuts_[2, idx]:self.data_cuts_[2, idx]+self.gen_sig_len], sig_item    # , self.data_bpdn_[idx, :]
+        return sig_item + self.data_noise_[self.data_cuts_[2, idx]:self.data_cuts_[2, idx]+self.gen_sig_len], sig_item    # , self.data_bpdn_[idx, :]
 
 
-def DataSplit(data_dir, file_gen, file_sigs, file_bw, file_bpdn, tvt_split, batch_size=128, transform=None):
-    ds_trn = ECGDataset('train', data_dir, file_gen, file_sigs, file_bw, file_bpdn, tvt_split, transform)
-    ds_val = ECGDataset('valid', data_dir, file_gen, file_sigs, file_bw, file_bpdn, tvt_split, transform)
-    ds_tst = ECGDataset('test', data_dir, file_gen, file_sigs, file_bw, file_bpdn, tvt_split, transform)
+def DataSplit(data_dir, noise_type, file_gen, file_sigs, file_noise, file_bpdn, tvt_split, batch_size=128, transform=None):
+    ds_trn = ECGDataset('train', data_dir, noise_type, file_gen, file_sigs, file_noise, file_bpdn, tvt_split, transform)
+    ds_val = ECGDataset('valid', data_dir, noise_type, file_gen, file_sigs, file_noise, file_bpdn, tvt_split, transform)
+    ds_tst = ECGDataset('test', data_dir, noise_type, file_gen, file_sigs, file_noise, file_bpdn, tvt_split, transform)
 
     trn_smplr = SubsetRandomSampler(list(range(len(ds_trn))))
 

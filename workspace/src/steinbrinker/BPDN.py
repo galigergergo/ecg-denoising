@@ -2,7 +2,7 @@ import numpy as np
 from cvxopt import matrix, solvers
 
 
-def BPDN(signal, dictionary, lambda_param ):
+def BPDN(signal, dictionary, lambda_param, max_iters=100):
     n, d = dictionary.shape
     m = 2*d
 
@@ -25,6 +25,7 @@ def BPDN(signal, dictionary, lambda_param ):
     b = matrix(signal)
 
     solvers.options['show_progress'] = False
+    solvers.options['maxiters'] = max_iters
     sol = solvers.qp(P, q, G, h, A=A_tilde, b=b)
     x_tilde = np.array(sol['x']).reshape(-1)
 

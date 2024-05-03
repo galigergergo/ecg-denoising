@@ -116,7 +116,7 @@ class ECGDataset(Dataset):
 
     def __getitem__(self, idx):
         sig_item = self.data_sigs_[self.data_cuts_[1, idx]:self.data_cuts_[1, idx]+self.gen_sig_len, self.data_cuts_[0, idx]]
-        return sig_item + self.data_noise_[self.data_cuts_[2, idx]:self.data_cuts_[2, idx]+self.gen_sig_len], sig_item    # , self.data_bpdn_[idx, :]
+        return sig_item + self.data_noise_[self.data_cuts_[2, idx]:self.data_cuts_[2, idx]+self.gen_sig_len], sig_item, self.data_bpdn_[idx, :]
 
 
 def DataSplit(data_dir, noise_type, file_gen, file_sigs, file_noise, file_bpdn, tvt_split, batch_size=128, transform=None):

@@ -234,7 +234,7 @@ class Solver(object):
 
             self.model.train(True)
 
-            for batch_idx, (x_in, y_target) in enumerate(self.data_loader):
+            for batch_idx, (x_in, y_target, x_0) in enumerate(self.data_loader):
 
                 # measured vector (104*1); add channels
                 # CIKK: vector b (16) --\/
@@ -244,19 +244,19 @@ class Solver(object):
                 # CIKK: initialization (16) --\/
                 # x_0 = torch.from_numpy(np.random.random((x_in.shape[0], self.Phi.shape[1])))
                 # x_0 = torch.from_numpy(np.zeros((x_in.shape[0], self.Phi.shape[1])))
-                # x_0 = torch.unsqueeze(x_0, 2)
+                x_0 = torch.unsqueeze(x_0, 2)
                 # print(x_0.shape)
 
                 # target image (64*64)
                 y_target = torch.unsqueeze(y_target, 2)
 
-                # x_0 = x_0.clone().detach().to(device=self.device)
+                x_0 = x_0.clone().detach().to(device=self.device)
                 x_in = x_in.clone().detach().to(device=self.device)
                 y_target = y_target.clone().detach().to(device=self.device)
                 
                 Phi = self.Phi.repeat((x_in.shape[0], 1, 1))
                 
-                x_0 = torch.bmm(Phi.permute(0, 2, 1), x_in)
+                # x_0 = torch.bmm(Phi.permute(0, 2, 1), x_in)
                                 
                 # predict and compute losses
                 if self.model_name == 'FISTANet':
@@ -320,9 +320,9 @@ class Solver(object):
             self.val_losses = []
             self.model.eval()
             with torch.no_grad():
-                for batch_idy, (x_in, y_target) in enumerate(self.val_loader):
+                for batch_idy, (x_in, y_target, x_0) in enumerate(self.val_loader):
                     x_in = torch.unsqueeze(x_in, 2)
-                    x_0 = torch.from_numpy(np.zeros((x_in.shape[0], 100)))
+                    # x_0 = torch.from_numpy(np.zeros((x_in.shape[0], 100)))
                     x_0 = torch.unsqueeze(x_0, 2)
                     y_target = torch.unsqueeze(y_target, 2)
 

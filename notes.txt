@@ -57,6 +57,15 @@ egy batch-re túltanítani, mert úgy nagyon gyorsan overfittelnie kell
 
 - The last 2/3 (138) of the test signals are all zero arrays
 - The total magnitudes of the non-zero test signals are very different from each other
+- Is BPDN (cvxopt) always going to yield the optimal result for a given dictionary?
+
+- presented materials/MEETING03_presentation.pdf
+
+-> ther might be BW noise in the target signal as well - real-world signal data
+-> orthogonal matching pursuit for the initial approximation
+-> F and F_theta as identity matrices to avoid enforcing  sparsity in a latent space 
+-> perform more BPDN iterations for the inputs
+
 
 TODO:
     1. Compare FISTA-Net sparse representation with BPDN

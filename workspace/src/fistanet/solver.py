@@ -23,7 +23,7 @@ px = 1/plt.rcParams['figure.dpi']
 
 
 def plot_loss_curves(train_losses, val_losses, save_path, file_name):
-    fig, axs = plt.subplots(1, 1)
+    fig, axs = plt.subplots(1, 1, num=1, clear=True)
     fig.set_figheight(800*px)
     fig.set_figwidth(800*px)
     axs.plot(train_losses, 'b-')
@@ -32,12 +32,12 @@ def plot_loss_curves(train_losses, val_losses, save_path, file_name):
         os.makedirs(pjoin(save_path, 'plots', 'losses'))
     plt.legend(labels=['Train Loss (MSE+Spa)', 'Validation Loss (MSE+Spa)'])
     plt.savefig(pjoin(save_path, 'plots', 'losses', file_name))
-    plt.clf()
-    plt.close()
+    # plt.clf()
+    # plt.close()
     
     
 def test_plot_est(x_in, pred, target, save_path, file_name):
-    fig, axs = plt.subplots(3, 1)
+    fig, axs = plt.subplots(3, 1, num=1, clear=True)
     fig.set_figheight(2000*px)
     fig.set_figwidth(1000*px)
     bpdn_est = np.load('data/generated/BW_alphas-BPDN_10000_2024-04-07-12-43-32.npy')
@@ -60,8 +60,8 @@ def test_plot_est(x_in, pred, target, save_path, file_name):
     if not os.path.exists(pjoin(save_path, 'plots', 'comp')):
         os.makedirs(pjoin(save_path, 'plots', 'comp'))
     plt.savefig(pjoin(save_path, 'plots', 'comp', file_name))
-    plt.clf()
-    plt.close()
+    # plt.clf()
+    # plt.close()
     #pass
     
     
@@ -84,7 +84,7 @@ def test_plot_est(x_in, pred, target, save_path, file_name):
     
     
 def test_plot(x_in, pred, target, save_path, file_name):
-    fig, axs = plt.subplots(3, 3)
+    fig, axs = plt.subplots(3, 3, num=1, clear=True)
     fig.set_figheight(1000*px)
     fig.set_figwidth(800*px)
     axs[0, 0].plot(x_in[0, :, :].cpu().squeeze().detach())
@@ -99,8 +99,8 @@ def test_plot(x_in, pred, target, save_path, file_name):
     if not os.path.exists(pjoin(save_path, 'plots', 'examples')):
         os.makedirs(pjoin(save_path, 'plots', 'examples'))
     plt.savefig(pjoin(save_path, 'plots', 'examples', file_name))
-    plt.clf()
-    plt.close()
+    # plt.clf()
+    # plt.close()
     #pass
 
 def l1_loss(pred, target, l1_weight):
@@ -149,11 +149,6 @@ class Solver(object):
         
         self.lr_dec_after = args['lr_dec_after']
         self.lr_dec_every = args['lr_dec_every']
-        
-        self.train_losses = []
-        self.val_losses = []
-        self.all_avg_train_losses = []
-        self.all_avg_val_losses = []
 
         # set different lr for regularization weights and network weights
         self.optimizer = optim.Adam([
@@ -195,15 +190,15 @@ class Solver(object):
 #        else:
 #            self.model.load_state_dict(torch.load(f))
     
-    def save_model(self, iter_):
+    def save_model(self, iter_, train_losses, val_losses):
         if not os.path.exists(pjoin(self.save_path, 'models')):
             os.makedirs(pjoin(self.save_path, 'models'))
         f = pjoin(self.save_path, 'models', 'epoch_{}.ckpt'.format(iter_))
         checkpoint = { 
             'model': self.model.state_dict(),
             'optimizer': self.optimizer.state_dict(),
-            'train_losses': self.train_losses,
-            'val_losses': self.val_losses}
+            'train_losses': train_losses,
+            'val_losses': val_losses}
         torch.save(checkpoint, f)
 
     def load_model(self, iter_):
@@ -226,11 +221,14 @@ class Solver(object):
         
         if self.start_epoch:
             self.load_model(self.start_epoch)
+        
+        all_avg_train_losses = []
+        all_avg_val_losses = []
 
         for epoch in range(1 + self.start_epoch, self.num_epochs + 1 + self.start_epoch):
             print('Training epoch %d...' % epoch)
             
-            self.train_losses = []
+            train_losses = []
 
             self.model.train(True)
 
@@ -289,7 +287,7 @@ class Solver(object):
                 # backpropagate the gradients
                 loss.backward()
                 self.optimizer.step()
-                self.train_losses.append(loss.item())
+                train_losses.append(loss.item())
                     
 
                 # print processes
@@ -314,10 +312,10 @@ class Solver(object):
                         print('\t TVw: {:.6f} | TVb: {:.6f} | GSw: {:.6f} | GSb: {:.6f} | TSUw: {:.6f} | TSUb: {:.6f}'
                               ''.format(self.model.w_theta.item(), self.model.b_theta.item(), self.model.w_mu.item(), self.model.b_mu.item(), self.model.w_rho.item(), self.model.b_rho.item()))
             
-            self.all_avg_train_losses.append(np.mean(self.train_losses))
+            all_avg_train_losses.append(np.mean(train_losses))
             
             print('Validating epoch %d...' % epoch)
-            self.val_losses = []
+            val_losses = []
             self.model.eval()
             with torch.no_grad():
                 for batch_idy, (x_in, y_target, x_0) in enumerate(self.val_loader):
@@ -352,26 +350,26 @@ class Solver(object):
                     loss = loss_discrepancy + self.lambda_sp_loss * sparsity_constraint #  + 0.01 * loss_constraint
                     
                     # add batch validation loss list
-                    self.val_losses.append(loss.item())
+                    val_losses.append(loss.item())
             
-            self.all_avg_val_losses.append(np.mean(self.val_losses))
+            all_avg_val_losses.append(np.mean(val_losses))
             
-            plot_loss_curves(self.all_avg_train_losses, self.all_avg_val_losses, self.save_path, 'train_val_losses_ep0.png')
-            if epoch > 4:
-                plot_loss_curves(self.all_avg_train_losses[4:], self.all_avg_val_losses[4:], self.save_path, 'train_val_losses_ep5.png')
-            if epoch > 19:
-                plot_loss_curves(self.all_avg_train_losses[19:], self.all_avg_val_losses[19:], self.save_path, 'train_val_losses_ep20.png')
-            if epoch > 39:
-                plot_loss_curves(self.all_avg_train_losses[39:], self.all_avg_val_losses[39:], self.save_path, 'train_val_losses_ep40.png')
+            plot_loss_curves(all_avg_train_losses, all_avg_val_losses, self.save_path, 'train_val_losses_ep0.png')
+            if epoch > 100:
+                plot_loss_curves(all_avg_train_losses[99:], all_avg_val_losses[99:], self.save_path, 'train_val_losses_ep5.png')
+            if epoch > 1000:
+                plot_loss_curves(all_avg_train_losses[999:], all_avg_val_losses[999:], self.save_path, 'train_val_losses_ep20.png')
+            if epoch > 2500:
+                plot_loss_curves(all_avg_train_losses[2499:], all_avg_val_losses[2499:], self.save_path, 'train_val_losses_ep40.png')
             
             print('-------------------------------------------')
             print('Epoch statistics:')
-            print('Average training loss:', mean(self.train_losses))
-            print('Average validation loss:', mean(self.val_losses))
+            print('Average training loss:', mean(train_losses))
+            print('Average validation loss:', mean(val_losses))
             
-            save_every = 1        # save model ever N-th epoch
+            save_every = 10        # save model ever N-th epoch
             if not (epoch % save_every) and epoch > 0:
-                self.save_model(epoch);
+                self.save_model(epoch, train_losses, val_losses);
             
             # decrease learning rate per X epochs after a set number of epochs
             if epoch >= self.lr_dec_after:

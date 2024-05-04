@@ -40,17 +40,17 @@ class BasicBlock(nn.Module):
         super(BasicBlock, self).__init__()
         self.Sp = nn.Softplus()
 
-        self.conv_D = nn.Conv2d(1, features, (3, 3), stride=1, padding=1)
-        self.conv1_forward = nn.Conv2d(features, features, (3, 3), stride=1, padding=1)
-        self.conv2_forward = nn.Conv2d(features, features, (3, 3), stride=1, padding=1)
-        self.conv3_forward = nn.Conv2d(features, features, (3, 3), stride=1, padding=1)
-        self.conv4_forward = nn.Conv2d(features, features, (3, 3), stride=1, padding=1)
+#         self.conv_D = nn.Conv2d(1, features, (3, 3), stride=1, padding=1)
+#         self.conv1_forward = nn.Conv2d(features, features, (3, 3), stride=1, padding=1)
+#         self.conv2_forward = nn.Conv2d(features, features, (3, 3), stride=1, padding=1)
+#         self.conv3_forward = nn.Conv2d(features, features, (3, 3), stride=1, padding=1)
+#         self.conv4_forward = nn.Conv2d(features, features, (3, 3), stride=1, padding=1)
 
-        self.conv1_backward = nn.Conv2d(features, features, (3, 3), stride=1, padding=1)
-        self.conv2_backward = nn.Conv2d(features, features, (3, 3), stride=1, padding=1)
-        self.conv3_backward = nn.Conv2d(features, features, (3, 3), stride=1, padding=1)
-        self.conv4_backward = nn.Conv2d(features, features, (3, 3), stride=1, padding=1)
-        self.conv_G = nn.Conv2d(features, 1, (3, 3), stride=1, padding=1)
+#         self.conv1_backward = nn.Conv2d(features, features, (3, 3), stride=1, padding=1)
+#         self.conv2_backward = nn.Conv2d(features, features, (3, 3), stride=1, padding=1)
+#         self.conv3_backward = nn.Conv2d(features, features, (3, 3), stride=1, padding=1)
+#         self.conv4_backward = nn.Conv2d(features, features, (3, 3), stride=1, padding=1)
+#         self.conv_G = nn.Conv2d(features, 1, (3, 3), stride=1, padding=1)
 
     def forward(self, x, PhiTPhi, PhiTb, lambda_step, soft_thr, epoch):
         # CIKK: iteráció kék oldala - gradient descent module --\/
@@ -62,43 +62,45 @@ class BasicBlock(nn.Module):
         # CIKK: minden, ami ez alatt van a narancssárga rész - proximal mapping module --\/
         x_input = x
 
-        x_D = self.conv_D(x_input.float())
+#         x_D = self.conv_D(x_input.float())
 
-        x = self.conv1_forward(x_D)
-        x = F.relu(x)
-        x = self.conv2_forward(x)
-        x = F.relu(x)
-        x = self.conv3_forward(x)
-        x = F.relu(x)
-        x_forward = self.conv4_forward(x)
+#         x = self.conv1_forward(x_D)
+#         x = F.relu(x)
+#         x = self.conv2_forward(x)
+#         x = F.relu(x)
+#         x = self.conv3_forward(x)
+#         x = F.relu(x)
+#         x_forward = self.conv4_forward(x)
 
         # soft-thresholding block
-        x_st = torch.mul(torch.sign(x_forward), F.relu(torch.abs(x_forward) - self.Sp(soft_thr)))
+        x_st = torch.mul(torch.sign(x_input), F.relu(torch.abs(x_input) - self.Sp(soft_thr)))
 
-        x = self.conv1_backward(x_st)
-        x = F.relu(x)
-        x = self.conv2_backward(x)
-        x = F.relu(x)
-        x = self.conv3_backward(x)
-        x = F.relu(x)
-        x_backward = self.conv4_backward(x)
+#         x = self.conv1_backward(x_st)
+#         x = F.relu(x)
+#         x = self.conv2_backward(x)
+#         x = F.relu(x)
+#         x = self.conv3_backward(x)
+#         x = F.relu(x)
+#         x_backward = self.conv4_backward(x)
 
-        x_G = self.conv_G(x_backward)
+#         x_G = self.conv_G(x_backward)
 
         # prediction output (skip connection); non-negative output
         # x_pred = F.relu(x_input + x_G)
-        x_pred = x_input + x_G
+        x_pred = x_input + x_st
 
         # compute symmetry loss
-        x = self.conv1_backward(x_forward)
-        x = F.relu(x)
-        x = self.conv2_backward(x)
-        x = F.relu(x)
-        x = self.conv3_backward(x)
-        x = F.relu(x)
-        x_D_est = self.conv4_backward(x)
-        symloss = x_D_est - x_D
+        # x = self.conv1_backward(x_forward)
+        # x = F.relu(x)
+        # x = self.conv2_backward(x)
+        # x = F.relu(x)
+        # x = self.conv3_backward(x)
+        # x = F.relu(x)
+        # x_D_est = self.conv4_backward(x)
+        # symloss = x_D_est - x_D
 
+        symloss = x_input - x_input   # = 0
+        
         return [x_pred, symloss, x_st]
     
 # def test_plot_alpha(x_0, save_path, file_name):
@@ -117,7 +119,7 @@ class BasicBlock(nn.Module):
 
 def test_plot_alpha(x_0, save_path, file_name):
     fig, axs = plt.subplots(3, 1, num=1, clear=True)
-    fig.set_figheight(600/plt.rcParams['figure.dpi'])
+    fig.set_figheight(1500/plt.rcParams['figure.dpi'])
     fig.set_figwidth(1000/plt.rcParams['figure.dpi'])
     axs[0].plot(np.linspace(0, 1, x_0[0, :, :].cpu().squeeze().detach().shape[0]), x_0[0, :, :].cpu().squeeze().detach())
     axs[1].plot(np.linspace(0, 1, x_0[500, :, :].cpu().squeeze().detach().shape[0]), x_0[500, :, :].cpu().squeeze().detach())
@@ -130,9 +132,9 @@ def test_plot_alpha(x_0, save_path, file_name):
     #pass
     
     
-class FISTANet(nn.Module):
+class FISTANetNoST(nn.Module):
     def __init__(self, LayerNo, featureNo):
-        super(FISTANet, self).__init__()
+        super(FISTANetNoST, self).__init__()
         self.LayerNo = LayerNo
         onelayer = []
 
@@ -197,7 +199,7 @@ class FISTANet(nn.Module):
         # xnew = torch.div(xnew, 10)
         pred = b - torch.bmm(Phi, xnew)
         
-        if file_name[0] == 'v':   # validation only
+        if file_name[0] == 'v' and not epoch%10:   # validation only
            test_plot_alpha(xnew, save_path, file_name)
         
         return [pred, layers_sym, layers_st]

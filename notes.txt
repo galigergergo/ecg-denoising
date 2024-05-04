@@ -72,3 +72,12 @@ TODO:
         - generate BPDN estimations for validation data
         - implement plotting comparison with with generated BPDN signals
     2. Save all run parameters as a main log file, outside of model checkpoints
+
+
+- letting BPDN run for 1 iteration doesn't seem sufficient enough by looking at the alpha estimates (see workspace/BPDN_iteration_analysis.ipynb)
+- getting rid of the F and F_theta convolutional blocks makes sense, now we measure sparcity of the actual alpha estimates, but the sparcity measurement itself is still not correct:
+    - sparcity = mean(abs(alpha))
+        - encourages low values accross the whole estimate,
+        - rather than a large number of zeros, and a few high-value non-zero elements like BPDN estimates (again, see workspace/BPDN_iteration_analysis.ipynb)
+
+

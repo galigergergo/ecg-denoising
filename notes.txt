@@ -63,21 +63,46 @@ egy batch-re túltanítani, mert úgy nagyon gyorsan overfittelnie kell
 
 -> ther might be BW noise in the target signal as well - real-world signal data
 -> orthogonal matching pursuit for the initial approximation
--> F and F_theta as identity matrices to avoid enforcing  sparsity in a latent space 
--> perform more BPDN iterations for the inputs
-
 
 TODO:
-    1. Compare FISTA-Net sparse representation with BPDN
+    1. Perform more BPDN iterations for the inputs
+    2. F and F_theta as identity matrices to avoid enforcing  sparsity in a latent space 
+    3. Compare FISTA-Net sparse representation with BPDN
         - generate BPDN estimations for validation data
-        - implement plotting comparison with with generated BPDN signals
-    2. Save all run parameters as a main log file, outside of model checkpoints
+        - implement plotting comparison with generated BPDN signals
+    4. Save all run parameters as a main log file, outside of model checkpoints
 
 
-- letting BPDN run for 1 iteration doesn't seem sufficient enough by looking at the alpha estimates (see workspace/BPDN_iteration_analysis.ipynb)
-- getting rid of the F and F_theta convolutional blocks makes sense, now we measure sparcity of the actual alpha estimates, but the sparcity measurement itself is still not correct:
+---------------------------------------------------------------------
+----------------------------- MEETING 4 -----------------------------
+---------------------------------------------------------------------
+
+Fixes:
+- b in Ax=b is not the measurement vector in our case, but rather the noise on the measurement vector, i.e. y_target - x_in
+- memmory leak bug caused by not closing plt figures correctly
+
+Observations:
+- letting BPDN run for 1 iteration doesn't seem sufficient enough by looking at the alpha estimates (see workspace/BPDN_iteration_analysis.ipynb) - running for more (3, 5) iterations should be a better initial estimate, but FISTA-Net still finds other non-sparse solutions, that seemingly have no relation to the BPDN input
+    - the model didn't really work on the max iteration BPDN input either (at least not for specifically enforcing sparcity), because it only learned to keep the input untouched
+- getting rid of the F and F_theta convolutional blocks makes sense, now we measure sparcity of the actual alpha estimates, but the sparcity measurement itself might still not be adequate:
     - sparcity = mean(abs(alpha))
         - encourages low values accross the whole estimate,
         - rather than a large number of zeros, and a few high-value non-zero elements like BPDN estimates (again, see workspace/BPDN_iteration_analysis.ipynb)
+    - adding the percentage of close-to-zero elements in alpha doesn't enforce sparcity, even slows down convergence
+    - getting rid of the conv blocks doesn't help with sparcity either, only slows down convergence
+    - there is a sparcity term (l1_loss(pred, y_target, 0.1)) in the main discrepancy loss - we could try increasing the weight of this
+- when running training for longer (10k epochs), the model seems to reset (find new direction with very high loss) every 3-4k epochs
+- was the sent test data correct? | BPM-s are very different between samples, is this correct? - maybe sparcity could easier be enforced on a more homogenous dataset
+
+TODOS:
+1. Try to set the sparcity weight higher at the start for more iteration runs
+2. Calculate and show BPDN-FISTANet MSE comparison in plots - pattern analysis
+3. Reduce dataset to similar BPM samples
+4. Show initial BPDN estimate inputs on plots:
+    - include on alpha plots
+    - include denoising result on comp plots
+5. Save all run parameters as a main log file, outside of model checkpoints
+6. Initialize training input with SPARSE random vector (or threshold the limited iteration BPDN inputs)
+
 
 

@@ -191,13 +191,15 @@ class FISTANetNoST(nn.Module):
             # CIKK: (8c) - következő réteg bemenetének számolása --\/
             y = xnew + rho_ * (xnew - xold)  # two-step update
             xnews.append(xnew)   # iteration result
-            layers_st.append(layer_st)
+            # layers_st.append(layer_st)
+            layers_st.append(xnew)
             layers_sym.append(layer_sym)
 
         xnew = xnew.squeeze(1)
         # xnew[np.abs(xnew) < 1e-6] = 0
         # xnew = torch.div(xnew, 10)
-        pred = b - torch.bmm(Phi, xnew)
+        # pred = b - torch.bmm(Phi, xnew)
+        pred = xnew
         
         if file_name[0] == 'v' and not epoch%10:   # validation only
            test_plot_alpha(xnew, save_path, file_name)

@@ -142,6 +142,7 @@ class Solver(object):
         self.start_epoch = args['start_epoch']
         self.start_run = args['start_run']
         self.lambda_sp_loss = args['lambda_sp_loss']
+        self.lambda_pred_sp_loss = args['lambda_pred_sp_loss']
         self.lambda_sym_loss = args['lambda_sym_loss']
         self.lr = args['lr']
         
@@ -172,6 +173,9 @@ class Solver(object):
         self.test_data = test_data
         self.test_images = test_images
         self.train_loss = nn.MSELoss()
+        
+        self.all_avg_train_losses = []
+        self.all_avg_val_losses = []
 
 #    def save_model(self, iter_):
 #        if not os.path.exists(self.save_path):
@@ -197,8 +201,8 @@ class Solver(object):
         checkpoint = { 
             'model': self.model.state_dict(),
             'optimizer': self.optimizer.state_dict(),
-            'train_losses': train_losses,
-            'val_losses': val_losses}
+            'train_losses': self.all_avg_train_losses,
+            'val_losses': self.all_avg_val_losses}
         torch.save(checkpoint, f)
 
     def load_model(self, iter_):
@@ -206,6 +210,8 @@ class Solver(object):
         checkpoint = torch.load(f,  map_location=torch.device('cuda'))
         self.model.load_state_dict(checkpoint['model'])
         self.optimizer.load_state_dict(checkpoint['optimizer'])
+        # self.all_avg_train_losses = checkpoint['train_losses']
+        # self.all_avg_val_losses = checkpoint['val_losses']
         
         # decrease learning rate per X epochs after a set number of epochs
         if iter_ >= self.lr_dec_after:
@@ -219,11 +225,11 @@ class Solver(object):
         # set up Tensorboard
         # writer = SummaryWriter('runs/'+self.model_name)
         
+        self.all_avg_train_losses = []
+        self.all_avg_val_losses = []
+        
         if self.start_epoch:
             self.load_model(self.start_epoch)
-        
-        all_avg_train_losses = []
-        all_avg_val_losses = []
 
         for epoch in range(1 + self.start_epoch, self.num_epochs + 1 + self.start_epoch):
             print('Training epoch %d...' % epoch)
@@ -258,8 +264,9 @@ class Solver(object):
                                 
                 # predict and compute losses
                 if self.model_name == 'FISTANet':
-                    [pred, loss_layers_sym, loss_st] = self.model(x_0, x_in, Phi, epoch, self.save_path, 'train_ep%d_btch%d.png' % (epoch, batch_idx))   # forward
-                
+                    [pred_alph, loss_layers_sym, loss_st] = self.model(x_0, x_in-y_target, Phi, epoch, self.save_path, 'train_ep%d_btch%d.png' % (epoch, batch_idx))   # forward
+                    pred = x_in - torch.bmm(Phi, pred_alph)
+                    
                     # plot training batch
                     # if not epoch % 10:
                     #     test_plot_est(x_in, pred, y_target, self.save_path, 'train_ep%d_btch%d.png' % (epoch, batch_idy))
@@ -276,10 +283,12 @@ class Solver(object):
                     sparsity_constraint = 0
                     for k, _ in enumerate(loss_st, 0):
                         sparsity_constraint += torch.mean(torch.abs(loss_st[k]))
+                        
+                    pred_sparsity_constraint = (pred_alph.shape[0]*pred_alph.shape[1])/(torch.sum(pred_alph<1e-6)+1e-6)
 
                     # loss = loss_discrepancy + gamma * loss_constraint
                     # CIKK: (14) --\/
-                    loss = loss_discrepancy + self.lambda_sym_loss * loss_constraint + self.lambda_sp_loss * sparsity_constraint 
+                    loss = loss_discrepancy + self.lambda_sym_loss * loss_constraint + self.lambda_sp_loss * sparsity_constraint + self.lambda_pred_sp_loss * pred_sparsity_constraint
 
                 self.model.zero_grad()
                 self.optimizer.zero_grad()
@@ -303,8 +312,8 @@ class Solver(object):
                                     self.optimizer.param_groups[0]["lr"],
                                     time.time() - start_time))
 
-                    print('\t\t\t\tDisc: {:.6f}\t\tSym: {:.6f}\t\tSpars: {:.6f}'
-                          ''.format(loss_discrepancy.data, self.lambda_sym_loss * loss_constraint.data, self.lambda_sp_loss * sparsity_constraint.data))
+                    print('\t\t\t\tDisc: {:.6f}\t\tSym: {:.6f}\t\tSpars: {:.6f}\t\tPred Spars: {:.6f}'
+                          ''.format(loss_discrepancy.data, self.lambda_sym_loss * loss_constraint.data, self.lambda_sp_loss * sparsity_constraint.data, self.lambda_pred_sp_loss * pred_sparsity_constraint.data))
 
 
                     # print weight values of model
@@ -312,7 +321,7 @@ class Solver(object):
                         print('\t TVw: {:.6f} | TVb: {:.6f} | GSw: {:.6f} | GSb: {:.6f} | TSUw: {:.6f} | TSUb: {:.6f}'
                               ''.format(self.model.w_theta.item(), self.model.b_theta.item(), self.model.w_mu.item(), self.model.b_mu.item(), self.model.w_rho.item(), self.model.b_rho.item()))
             
-            all_avg_train_losses.append(np.mean(train_losses))
+            self.all_avg_train_losses.append(np.mean(train_losses))
             
             print('Validating epoch %d...' % epoch)
             val_losses = []
@@ -330,7 +339,8 @@ class Solver(object):
                     
                     Phi = self.Phi.repeat((x_in.shape[0], 1, 1))
                     
-                    [pred, loss_layers_sym, loss_st] = self.model(x_0, x_in, Phi, epoch, self.save_path, 'valid_ep%d_btch%d.png' % (epoch, batch_idx))   # forward
+                    [pred_alph, loss_layers_sym, loss_st] = self.model(x_0, x_in-y_target, Phi, epoch, self.save_path, 'valid_ep%d_btch%d.png' % (epoch, batch_idx))   # forward
+                    pred = x_in - torch.bmm(Phi, pred_alph)
                     
                     # plot validation batch
                     if not epoch % 10:
@@ -341,31 +351,36 @@ class Solver(object):
                     loss_discrepancy_1 = self.train_loss(pred, y_target)
                     loss_discrepancy_2 = l1_loss(pred, y_target, 0.1)
                     loss_discrepancy = loss_discrepancy_1 + loss_discrepancy_2
-                    #loss_constraint = 0
-                    #for k, _ in enumerate(loss_layers_sym, 0):
-                    #    loss_constraint += torch.mean(torch.pow(loss_layers_sym[k], 2))
+                    loss_constraint = 0
+                    for k, _ in enumerate(loss_layers_sym, 0):
+                       loss_constraint += torch.mean(torch.pow(loss_layers_sym[k], 2))
                     sparsity_constraint = 0
                     for k, _ in enumerate(loss_st, 0):
                         sparsity_constraint += torch.mean(torch.abs(loss_st[k]))
-                    loss = loss_discrepancy + self.lambda_sp_loss * sparsity_constraint #  + 0.01 * loss_constraint
+                       
+                    pred_sparsity_constraint = (pred_alph.shape[0]*pred_alph.shape[1])/(torch.sum(pred_alph<1e-6)+1e-6)
+
+                    # loss = loss_discrepancy + gamma * loss_constraint
+                    # CIKK: (14) --\/
+                    loss = loss_discrepancy + self.lambda_sym_loss * loss_constraint + self.lambda_sp_loss * sparsity_constraint + self.lambda_pred_sp_loss * pred_sparsity_constraint
                     
                     # add batch validation loss list
                     val_losses.append(loss.item())
             
-            all_avg_val_losses.append(np.mean(val_losses))
+            self.all_avg_val_losses.append(np.mean(val_losses))
             
-            plot_loss_curves(all_avg_train_losses, all_avg_val_losses, self.save_path, 'train_val_losses_ep0.png')
+            plot_loss_curves(self.all_avg_train_losses, self.all_avg_val_losses, self.save_path, 'train_val_losses_ep0.png')
             if epoch > 100:
-                plot_loss_curves(all_avg_train_losses[99:], all_avg_val_losses[99:], self.save_path, 'train_val_losses_ep5.png')
+                plot_loss_curves(self.all_avg_train_losses[99:], self.all_avg_val_losses[99:], self.save_path, 'train_val_losses_ep5.png')
             if epoch > 1000:
-                plot_loss_curves(all_avg_train_losses[999:], all_avg_val_losses[999:], self.save_path, 'train_val_losses_ep20.png')
+                plot_loss_curves(self.all_avg_train_losses[999:], self.all_avg_val_losses[999:], self.save_path, 'train_val_losses_ep20.png')
             if epoch > 2500:
-                plot_loss_curves(all_avg_train_losses[2499:], all_avg_val_losses[2499:], self.save_path, 'train_val_losses_ep40.png')
+                plot_loss_curves(self.all_avg_train_losses[2499:], self.all_avg_val_losses[2499:], self.save_path, 'train_val_losses_ep40.png')
             
             print('-------------------------------------------')
             print('Epoch statistics:')
-            print('Average training loss:', mean(train_losses))
-            print('Average validation loss:', mean(val_losses))
+            print('Average training loss:', mean(self.all_avg_train_losses))
+            print('Average validation loss:', mean(self.all_avg_val_losses))
             
             save_every = 10        # save model ever N-th epoch
             if not (epoch % save_every) and epoch > 0:

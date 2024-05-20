@@ -117,7 +117,7 @@ class BasicBlock(nn.Module):
 
 def test_plot_alpha(x_0, save_path, file_name):
     fig, axs = plt.subplots(3, 1, num=1, clear=True)
-    fig.set_figheight(600/plt.rcParams['figure.dpi'])
+    fig.set_figheight(1500/plt.rcParams['figure.dpi'])
     fig.set_figwidth(1000/plt.rcParams['figure.dpi'])
     axs[0].plot(np.linspace(0, 1, x_0[0, :, :].cpu().squeeze().detach().shape[0]), x_0[0, :, :].cpu().squeeze().detach())
     axs[1].plot(np.linspace(0, 1, x_0[500, :, :].cpu().squeeze().detach().shape[0]), x_0[500, :, :].cpu().squeeze().detach())
@@ -195,9 +195,10 @@ class FISTANet(nn.Module):
         xnew = xnew.squeeze(1)
         # xnew[np.abs(xnew) < 1e-6] = 0
         # xnew = torch.div(xnew, 10)
-        pred = b - torch.bmm(Phi, xnew)
+        # pred = b - torch.bmm(Phi, xnew)
+        pred = xnew
         
-        if file_name[0] == 'v':   # validation only
+        if file_name[0] == 'v' and not epoch%10:   # validation only
            test_plot_alpha(xnew, save_path, file_name)
         
         return [pred, layers_sym, layers_st]

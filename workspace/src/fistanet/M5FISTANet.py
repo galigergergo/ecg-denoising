@@ -115,13 +115,15 @@ class BasicBlock(nn.Module):
 #     plt.close()
 #     #pass
 
-def test_plot_alpha(x_0, save_path, file_name):
+def test_plot_alpha(x_0, xnew, save_path, file_name, target):
     fig, axs = plt.subplots(3, 1, num=1, clear=True)
     fig.set_figheight(1500/plt.rcParams['figure.dpi'])
     fig.set_figwidth(1000/plt.rcParams['figure.dpi'])
-    axs[0].plot(np.linspace(0, 1, x_0[0, :, :].cpu().squeeze().detach().shape[0]), x_0[0, :, :].cpu().squeeze().detach())
-    axs[1].plot(np.linspace(0, 1, x_0[500, :, :].cpu().squeeze().detach().shape[0]), x_0[500, :, :].cpu().squeeze().detach())
-    axs[2].plot(np.linspace(0, 1, x_0[950, :, :].cpu().squeeze().detach().shape[0]), x_0[950, :, :].cpu().squeeze().detach())
+    for ai, i in enumerate([0, 500, 950]):
+        axs[ai].plot(np.linspace(0, 1, x_0[i, :, :].cpu().squeeze().detach().shape[0]), x_0[i, :, :].cpu().squeeze().detach(), label=f'INITIAL (ZEROS: {torch.sum(x_0[i, :, :].cpu().squeeze().detach()<1e-6)} / {x_0[i, :, :].cpu().squeeze().detach().shape[0]} | L1: {torch.mean(torch.abs(x_0[i, :, :]))})', linewidth=0.5)
+        axs[ai].plot(np.linspace(0, 1, target[i, :, :].cpu().squeeze().detach().shape[0]), target[i, :, :].cpu().squeeze().detach(), label=f'BPDN (ZEROS: {torch.sum(target[i, :, :].cpu().squeeze().detach()<1e-6)} / {target[i, :, :].cpu().squeeze().detach().shape[0]} | L1: {torch.mean(torch.abs(target[i, :, :]))})', linewidth=0.5)
+        axs[ai].plot(np.linspace(0, 1, xnew[i, :, :].cpu().squeeze().detach().shape[0]), xnew[i, :, :].cpu().squeeze().detach(), 'r', label=f'FISTA-Net (ZEROS: {torch.sum(xnew[i, :, :].cpu().squeeze().detach()<1e-6)} / {xnew[i, :, :].cpu().squeeze().detach().shape[0]} | L1: {torch.mean(torch.abs(xnew[i, :, :]))})', linewidth=0.5)
+        axs[ai].legend()
     if not os.path.exists(pjoin(save_path, 'plots', 'alpha')):
         os.makedirs(pjoin(save_path, 'plots', 'alpha'))
     plt.savefig(pjoin(save_path, 'plots', 'alpha', file_name))
@@ -155,7 +157,7 @@ class FISTANet(nn.Module):
 
         self.Sp = nn.Softplus()
 
-    def forward(self, x0, b, Phi, epoch, save_path, file_name):
+    def forward(self, x0, b, Phi, epoch, save_path, file_name, target):
         """
         Phi   : system matrix; default dim 2500 x 100;
         b     : measured signal vector; default dim 2500 x 1;
@@ -199,6 +201,6 @@ class FISTANet(nn.Module):
         pred = xnew
         
         if file_name[0] == 'v' and not epoch%10:   # validation only
-           test_plot_alpha(xnew, save_path, file_name)
+           test_plot_alpha(xold, xnew, save_path, file_name, target)
         
         return [pred, layers_sym, layers_st]

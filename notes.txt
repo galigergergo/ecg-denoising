@@ -105,4 +105,22 @@ TODOS:
 6. Initialize training input with SPARSE random vector (or threshold the limited iteration BPDN inputs)
 
 
+---------------------------------------------------------------------
+----------------------------- MEETING 5 -----------------------------
+---------------------------------------------------------------------
+
+TODOS:
+1. Plot all elements of the loss function, not only the final sum
+2. Implement repeatable experiments (fixed random seeds for everything) - https://alexandruburlacu.github.io/posts/2023-01-12-mlops-for-independent-research
+3. Take the sparcity loss value (L1) from alpha after normalization - we don't want to punish very high values
+4. Compare L1 and MSE values of BPDN and FISTA-Net accross the entire validation set
+5. Perform the good reconstruction with random initialization
+6. We can also think of other datasets to use for a paper e.g. PhysioNet - for example the test signals already contain one kind of noise 
+7. Muscle Artifact noise with the same model
+8. Plot alpha without BPDN to see the spikes
+
+- run 2024-05-24-16-07-49_1000-lam-pred-spars_5iter-init resulted in a very good reconstruction, however, alpha is still not sparse as we expect it
+    - 1000 lambda_pred_spars refers to the L1 loss of the target - denoised prediction, not at the L1 loss of alpha
+    -> this was only emphasizing discrepancy loss, but through L1 (L1(target-pred)) -> maybe using only the L1 loss would be sufficient for the discrepancy loss
+- we could min-max normalize alpha before calculating the L1 norm to avoid penalyzing very high values (as BDPN also produces some high values)
 

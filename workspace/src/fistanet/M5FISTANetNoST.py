@@ -117,13 +117,16 @@ class BasicBlock(nn.Module):
 #     plt.close()
 #     #pass
 
-def test_plot_alpha(x_0, save_path, file_name):
+def test_plot_alpha(x_0, xnew, save_path, file_name):
     fig, axs = plt.subplots(3, 1, num=1, clear=True)
     fig.set_figheight(1500/plt.rcParams['figure.dpi'])
     fig.set_figwidth(1000/plt.rcParams['figure.dpi'])
     axs[0].plot(np.linspace(0, 1, x_0[0, :, :].cpu().squeeze().detach().shape[0]), x_0[0, :, :].cpu().squeeze().detach())
+    axs[0].plot(np.linspace(0, 1, xnew[0, :, :].cpu().squeeze().detach().shape[0]), xnew[0, :, :].cpu().squeeze().detach(), 'r')
     axs[1].plot(np.linspace(0, 1, x_0[500, :, :].cpu().squeeze().detach().shape[0]), x_0[500, :, :].cpu().squeeze().detach())
+    axs[1].plot(np.linspace(0, 1, xnew[500, :, :].cpu().squeeze().detach().shape[0]), xnew[500, :, :].cpu().squeeze().detach(), 'r')
     axs[2].plot(np.linspace(0, 1, x_0[950, :, :].cpu().squeeze().detach().shape[0]), x_0[950, :, :].cpu().squeeze().detach())
+    axs[2].plot(np.linspace(0, 1, xnew[950, :, :].cpu().squeeze().detach().shape[0]), xnew[950, :, :].cpu().squeeze().detach(), 'r')
     if not os.path.exists(pjoin(save_path, 'plots', 'alpha')):
         os.makedirs(pjoin(save_path, 'plots', 'alpha'))
     plt.savefig(pjoin(save_path, 'plots', 'alpha', file_name))
@@ -202,6 +205,6 @@ class FISTANetNoST(nn.Module):
         pred = xnew
         
         if file_name[0] == 'v' and not epoch%10:   # validation only
-           test_plot_alpha(xnew, save_path, file_name)
+           test_plot_alpha(xold, xnew, save_path, file_name)
         
         return [pred, layers_sym, layers_st]

@@ -18,6 +18,7 @@ from statistics import mean
 from PIL import Image
 from tqdm import tqdm
 import cv2
+import timeit
 
 
 px = 1/plt.rcParams['figure.dpi']
@@ -482,8 +483,13 @@ class Solver(object):
                 y_target = y_target.clone().detach().to(device=self.device)
 
                 Phi = self.Phi.repeat((x_in.shape[0], 1, 1))
-
+                
+                start = timeit.default_timer()
+                
                 [pred_alph, loss_layers_sym, loss_st] = self.model(x_0, x_in-y_target, Phi, self.test_epoch)   # forward
+                
+                stop = timeit.default_timer()
+                
                 pred = x_in - torch.bmm(Phi, pred_alph)
                 preds[batch_idy*self.batch_size:(batch_idy+1)*self.batch_size, :] = pred_alph.squeeze()
 
@@ -492,7 +498,7 @@ class Solver(object):
             os.makedirs(out_path)
         np.save(os.path.join(out_path, 'BW_alphas-FISTA-Net_10000_test.npy'), preds)
         
-        return preds
+        return preds, stop - start
 
     
     def test_MSE(self, test_loader, epoch):

@@ -157,7 +157,7 @@ class FISTANet(nn.Module):
 
         self.Sp = nn.Softplus()
 
-    def forward(self, x0, b, Phi, epoch, save_path, file_name, target):
+    def forward(self, x0, b, Phi, epoch, save_path=None, file_name=None, target=None):
         """
         Phi   : system matrix; default dim 2500 x 100;
         b     : measured signal vector; default dim 2500 x 1;
@@ -200,7 +200,7 @@ class FISTANet(nn.Module):
         # pred = b - torch.bmm(Phi, xnew)
         pred = xnew
         
-        if file_name[0] == 'v' and not epoch%10:   # validation only
+        if file_name != None and not epoch%10:   # validation only
            test_plot_alpha(xold, xnew, save_path, file_name, target)
         
         return [pred, layers_sym, layers_st]

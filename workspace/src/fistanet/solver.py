@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 from scipy.io import savemat, loadmat
 from statistics import mean
 from PIL import Image
+from tqdm import tqdm
 import cv2
 
 
@@ -140,7 +141,7 @@ def tv_loss(img, tv_weight):
 
 
 class Solver(object):
-    def __init__(self, model, Phi, data_loader, val_loader, batch_size, args, test_data, test_images=None):
+    def __init__(self, model, Phi, data_loader, val_loader, test_loader, batch_size, args):
         assert args['model_name'] in ['FISTANet']
 
         self.model_name = args['model_name']
@@ -148,6 +149,7 @@ class Solver(object):
         self.Phi = Phi
         self.data_loader = data_loader
         self.val_loader = val_loader
+        self.test_loader = test_loader
         self.data_dir = args['data_dir']
         self.num_epochs = args['num_epochs']
         self.start_epoch = args['start_epoch']
@@ -181,8 +183,6 @@ class Solver(object):
         self.device = args['device']
         self.log_interval = args['log_interval']
         self.test_epoch = args['test_epoch']
-        self.test_data = test_data
-        self.test_images = test_images
         self.train_loss = nn.MSELoss()
         
         self.all_avg_train_losses = {
@@ -237,7 +237,7 @@ class Solver(object):
         self.all_avg_val_losses = checkpoint['val_losses']
         
         # decrease learning rate per X epochs after a set number of epochs
-        if iter_ >= self.lr_dec_after:
+        if iter_ > self.lr_dec_after:
             if not (iter_ - self.lr_dec_after):
                 self.scheduler.step()
             elif not ((iter_ - self.lr_dec_after) % self.lr_dec_every):
@@ -458,31 +458,42 @@ class Solver(object):
                 self.save_model(epoch, train_losses, val_losses);
             
             # decrease learning rate per X epochs after a set number of epochs
-            if epoch >= self.lr_dec_after:
+            if epoch > self.lr_dec_after:
                 if not (epoch - self.lr_dec_after):
                     self.scheduler.step()
                 elif not ((epoch - self.lr_dec_after) % self.lr_dec_every):
                     self.scheduler.step()
-
-
+                    
+                    
     def test(self):
         self.load_model(self.test_epoch)
         self.model.eval()
-
+        
+        preds = torch.Tensor(np.zeros((len(self.test_loader.dataset), next(iter(self.test_loader))[2].shape[1])))
         with torch.no_grad():
-            # Must use the sample test dataset!!!
-            # callLapReg(data_dir=self.data_dir, y_test=self.test_data)
-            x_test_in = self.test_data[0]
-            #x_test_in = torch.unsqueeze(x_test_in, 1)
-            x_test_in = x_test_in.clone().detach().to(device=self.device)
+            for batch_idy, (x_in, y_target, x_0, x_bpdn) in enumerate(self.test_loader):
+                x_in = torch.unsqueeze(x_in, 2)
+                x_0 = torch.from_numpy(np.zeros((x_in.shape[0], 100)))
+                x_0 = torch.unsqueeze(x_0, 2)
+                y_target = torch.unsqueeze(y_target, 2)
 
-            if self.model_name == 'FISTANet':
-                x_test_img = self.test_data[1]
-                #x_test_img = torch.unsqueeze(x_test_img, 1)
-                x_test_img = x_test_img.clone().detach().to(device=self.device)
-                [test_res, _, _] = self.model(x_test_img, x_test_in, Phi, 999)
+                x_0 = x_0.clone().detach().to(device=self.device)
+                x_in = x_in.clone().detach().to(device=self.device)
+                y_target = y_target.clone().detach().to(device=self.device)
 
-        return test_res
+                Phi = self.Phi.repeat((x_in.shape[0], 1, 1))
+
+                [pred_alph, loss_layers_sym, loss_st] = self.model(x_0, x_in-y_target, Phi, self.test_epoch)   # forward
+                pred = x_in - torch.bmm(Phi, pred_alph)
+                preds[batch_idy*self.batch_size:(batch_idy+1)*self.batch_size, :] = pred_alph.squeeze()
+
+        out_path = os.path.join(self.save_path, 'infered')
+        if not os.path.exists(out_path):
+            os.makedirs(out_path)
+        np.save(os.path.join(out_path, 'BW_alphas-FISTA-Net_10000_test.npy'), preds)
+        
+        return preds
+
     
     def test_MSE(self, test_loader, epoch):
         SNRS = [-10, -20, 0, 10, 20, 30, 40, 50, 60, 70]

@@ -124,3 +124,17 @@ TODOS:
     -> this was only emphasizing discrepancy loss, but through L1 (L1(target-pred)) -> maybe using only the L1 loss would be sufficient for the discrepancy loss
 - we could min-max normalize alpha before calculating the L1 norm to avoid penalyzing very high values (as BDPN also produces some high values)
 
+
+---------------------------------------------------------------------
+----------------------------- MEETING 6 -----------------------------
+---------------------------------------------------------------------
+
+Discussions about the research proposal...
+
+
+---------------------------------------------------------------------
+----------------------------- MEETING 7 -----------------------------
+---------------------------------------------------------------------
+
+- large discrepancy loss compared to the other loss parts results in convergence, even with all zero initialization - BPDN initialization is not needed
+

@@ -160,7 +160,7 @@ class FISTANetNoST(nn.Module):
 
         self.Sp = nn.Softplus()
 
-    def forward(self, x0, b, Phi, epoch, save_path, file_name):
+    def forward(self, x0, b, Phi, epoch, save_path=None, file_name=None):
         """
         Phi   : system matrix; default dim 2500 x 100;
         b     : measured signal vector; default dim 2500 x 1;

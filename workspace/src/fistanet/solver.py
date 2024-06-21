@@ -31,6 +31,9 @@ def plot_loss_curves(train_losses, val_losses, save_path, epoch, file_name):
     axs[0, 0].plot(train_losses['sum'][epoch:], 'b-', label='SUM_TRAIN')
     axs[0, 0].plot(val_losses['sum'][epoch:], 'r--', label='SUM_VAL')
     axs[0, 0].legend()
+    axs[0, 1].plot(train_losses['non_zero'][epoch:], 'b-', label='NON_ZERO_TRAIN')
+    axs[0, 1].plot(val_losses['non_zero'][epoch:], 'r--', label='NON_ZERO_VAL')
+    axs[0, 1].legend()
     axs[1, 0].plot(train_losses['disc'][epoch:], 'b-', label='DISC_TRAIN')
     axs[1, 0].plot(val_losses['disc'][epoch:], 'r--', label='DISC_VAL')
     axs[1, 0].legend()
@@ -76,7 +79,7 @@ def test_plot_est(x_in, x0_pred, pred, target, save_path, file_name):
     # plt.clf()
     # plt.close()
     #pass
-    
+        
     
 # def test_plot_est(x_in, pred, target, save_path, file_name):
 #     fig, axs = plt.subplots(1, 1)
@@ -254,14 +257,16 @@ class Solver(object):
             'disc': [],
             'pred_spars': [],
             'sym': [],
-            'spars': []
+            'spars': [],
+            'non_zero': []
         }
         self.all_avg_val_losses = {
             'sum': [],
             'disc': [],
             'pred_spars': [],
             'sym': [],
-            'spars': []
+            'spars': [],
+            'non_zero': []
         }
         
         if self.start_epoch:
@@ -275,7 +280,8 @@ class Solver(object):
                 'disc': [],
                 'pred_spars': [],
                 'sym': [],
-                'spars': []
+                'spars': [],
+                'non_zero': []
             }
 
             self.model.train(True)
@@ -348,7 +354,8 @@ class Solver(object):
                 train_losses['disc'].append(loss_discrepancy.item())
                 train_losses['pred_spars'].append(self.lambda_pred_sp_loss * loss_pred_sparcity.item())
                 train_losses['sym'].append(self.lambda_sym_loss * loss_constraint.item())
-                train_losses['spars'].append(self.lambda_sp_loss * sparsity_constraint.item())                    
+                train_losses['spars'].append(self.lambda_sp_loss * sparsity_constraint.item())
+                train_losses['non_zero'].append((torch.sum(pred_alph>1e-3) / (pred_alph.shape[0] * pred_alph.shape[1])).item())
 
                 # print processes
                 if batch_idx % self.log_interval == 0:
@@ -376,7 +383,8 @@ class Solver(object):
             self.all_avg_train_losses['disc'].append(np.mean(train_losses['disc']))
             self.all_avg_train_losses['pred_spars'].append(np.mean(train_losses['pred_spars']))
             self.all_avg_train_losses['sym'].append(np.mean(train_losses['sym']))
-            self.all_avg_train_losses['spars'].append(np.mean(train_losses['spars']))  
+            self.all_avg_train_losses['spars'].append(np.mean(train_losses['spars']))
+            self.all_avg_train_losses['non_zero'].append(np.mean(train_losses['non_zero']))
             
             print('Validating epoch %d...' % epoch)
             val_losses = {
@@ -384,7 +392,8 @@ class Solver(object):
                 'disc': [],
                 'pred_spars': [],
                 'sym': [],
-                'spars': []
+                'spars': [],
+                'non_zero': []
             }
             self.model.eval()
             with torch.no_grad():
@@ -437,12 +446,14 @@ class Solver(object):
                     val_losses['pred_spars'].append(self.lambda_pred_sp_loss * loss_pred_sparcity.item())
                     val_losses['sym'].append(self.lambda_sym_loss * loss_constraint.item())
                     val_losses['spars'].append(self.lambda_sp_loss * sparsity_constraint.item())
+                    val_losses['non_zero'].append((torch.sum(pred_alph>1e-3) / (pred_alph.shape[0] * pred_alph.shape[1])).item())
             
             self.all_avg_val_losses['sum'].append(np.mean(val_losses['sum']))
             self.all_avg_val_losses['disc'].append(np.mean(val_losses['disc']))
             self.all_avg_val_losses['pred_spars'].append(np.mean(val_losses['pred_spars']))
             self.all_avg_val_losses['sym'].append(np.mean(val_losses['sym']))
             self.all_avg_val_losses['spars'].append(np.mean(val_losses['spars'])) 
+            self.all_avg_val_losses['non_zero'].append(np.mean(val_losses['non_zero'])) 
             
             vals = [0, 10, 100, 1000, 2500]
             for i in vals:

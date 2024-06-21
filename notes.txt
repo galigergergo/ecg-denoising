@@ -137,4 +137,19 @@ Discussions about the research proposal...
 ---------------------------------------------------------------------
 
 - large discrepancy loss compared to the other loss parts results in convergence, even with all zero initialization - BPDN initialization is not needed
+- denoising performance (MSE) is better for the converging FISTA-Net than BPDN accross the entire testing set
+- denoising performance for BPDN decreses the more iterations it is run for - sparsity increases with more iterations, which leads to a small amount of performance decrease
+- FISTA-Net still doesn't produce sparse estimates - L1 loss is lower than BPDN, but the number of non-zero elements is still almost 0
+- runtime is way lower with FISTA-Net
+
+TODOS:
+1. Find ways to enforce sparsity reduction from the literature - e.g. max pooling, 
+
+
+---------------------------------------------------------------------
+----------------------------- MEETING 8 -----------------------------
+---------------------------------------------------------------------
+
+- max-abs scaling the estimate before applying L1 loss seems promising
+
 

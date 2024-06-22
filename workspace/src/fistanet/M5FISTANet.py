@@ -120,9 +120,9 @@ def test_plot_alpha(x_0, xnew, save_path, file_name, target):
     fig.set_figheight(1500/plt.rcParams['figure.dpi'])
     fig.set_figwidth(1000/plt.rcParams['figure.dpi'])
     for ai, i in enumerate([0, 500, 950]):
-        axs[ai].plot(np.linspace(0, 1, x_0[i, :, :].cpu().squeeze().detach().shape[0]), x_0[i, :, :].cpu().squeeze().detach(), label=f'INITIAL (ZEROS: {torch.sum(x_0[i, :, :].cpu().squeeze().detach()<1e-6)} / {x_0[i, :, :].cpu().squeeze().detach().shape[0]} | L1: {torch.mean(torch.abs(x_0[i, :, :]))})', linewidth=0.5)
-        axs[ai].plot(np.linspace(0, 1, target[i, :, :].cpu().squeeze().detach().shape[0]), target[i, :, :].cpu().squeeze().detach(), label=f'BPDN (ZEROS: {torch.sum(target[i, :, :].cpu().squeeze().detach()<1e-6)} / {target[i, :, :].cpu().squeeze().detach().shape[0]} | L1: {torch.mean(torch.abs(target[i, :, :]))})', linewidth=0.5)
-        axs[ai].plot(np.linspace(0, 1, xnew[i, :, :].cpu().squeeze().detach().shape[0]), xnew[i, :, :].cpu().squeeze().detach(), 'r', label=f'FISTA-Net (ZEROS: {torch.sum(xnew[i, :, :].cpu().squeeze().detach()<1e-6)} / {xnew[i, :, :].cpu().squeeze().detach().shape[0]} | L1: {torch.mean(torch.abs(xnew[i, :, :]))})', linewidth=0.5)
+        axs[ai].plot(np.linspace(0, 1, x_0[i, :, :].cpu().squeeze().detach().shape[0]), x_0[i, :, :].cpu().squeeze().detach(), label=f'INITIAL (ZEROS: {torch.sum(x_0[i, :, :].abs().cpu().squeeze().detach()>1e-3)} / {x_0[i, :, :].cpu().squeeze().detach().shape[0]} | L1: {torch.mean(torch.abs(x_0[i, :, :]))})', linewidth=0.5)
+        axs[ai].plot(np.linspace(0, 1, target[i, :, :].cpu().squeeze().detach().shape[0]), target[i, :, :].cpu().squeeze().detach(), label=f'BPDN (ZEROS: {torch.sum(target[i, :, :].abs().cpu().squeeze().detach()>1e-3)} / {target[i, :, :].cpu().squeeze().detach().shape[0]} | L1: {torch.mean(torch.abs(target[i, :, :]))})', linewidth=0.5)
+        axs[ai].plot(np.linspace(0, 1, xnew[i, :, :].cpu().squeeze().detach().shape[0]), xnew[i, :, :].cpu().squeeze().detach(), 'r', label=f'FISTA-Net (ZEROS: {torch.sum(xnew[i, :, :].abs().cpu().squeeze().detach()>1e-3)} / {xnew[i, :, :].cpu().squeeze().detach().shape[0]} | L1: {torch.mean(torch.abs(xnew[i, :, :]))})', linewidth=0.5)
         axs[ai].legend()
     if not os.path.exists(pjoin(save_path, 'plots', 'alpha')):
         os.makedirs(pjoin(save_path, 'plots', 'alpha'))

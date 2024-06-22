@@ -144,7 +144,9 @@ Discussions about the research proposal...
 
 TODOS:
 1. Find ways to enforce sparsity reduction from the literature - e.g. max pooling, 
-
+2. Implement repeatable experiments (fixed random seeds for everything) - https://alexandruburlacu.github.io/posts/2023-01-12-mlops-for-independent-research
+3. We can also think of other datasets to use for a paper e.g. PhysioNet - for example the test signals already contain one kind of noise 
+4. Muscle Artifact noise with the same model
 
 ---------------------------------------------------------------------
 ----------------------------- MEETING 8 -----------------------------

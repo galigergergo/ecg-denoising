@@ -328,7 +328,12 @@ class Solver(object):
                     loss_discrepancy_2 = l1_loss(pred, y_target, 0.1)
                     loss_discrepancy = loss_discrepancy_1 + loss_discrepancy_2
                     # loss_pred_sparcity = loss_discrepancy_2
-                    loss_pred_sparcity = torch.mean(torch.abs(pred_alph))
+                    
+                    # L1 norm for alpha after max-abs normalization
+                    mins = pred_alph.squeeze().min(dim=1).values.repeat((pred_alph.squeeze().shape[1], 1)).T
+                    maxs = pred_alph.squeeze().max(dim=1).values.repeat((pred_alph.squeeze().shape[1], 1)).T
+                    absmax = torch.stack([mins, maxs]).abs().max(dim=0).values
+                    loss_pred_sparcity = torch.mean(torch.abs(pred_alph.squeeze() / absmax))
                     
                     loss_constraint = 0
                     for k, _ in enumerate(loss_layers_sym, 0):
@@ -355,7 +360,7 @@ class Solver(object):
                 train_losses['pred_spars'].append(self.lambda_pred_sp_loss * loss_pred_sparcity.item())
                 train_losses['sym'].append(self.lambda_sym_loss * loss_constraint.item())
                 train_losses['spars'].append(self.lambda_sp_loss * sparsity_constraint.item())
-                train_losses['non_zero'].append((torch.sum(pred_alph>1e-3) / (pred_alph.shape[0] * pred_alph.shape[1])).item())
+                train_losses['non_zero'].append((torch.sum(pred_alph.abs()>1e-5) / (pred_alph.shape[0] * pred_alph.shape[1])).item())
 
                 # print processes
                 if batch_idx % self.log_interval == 0:
@@ -426,7 +431,11 @@ class Solver(object):
                     loss_discrepancy_1 = self.train_loss(pred, y_target)
                     loss_discrepancy_2 = l1_loss(pred, y_target, 0.1)
                     loss_discrepancy = loss_discrepancy_1 + loss_discrepancy_2
-                    loss_pred_sparcity = torch.mean(torch.abs(pred_alph))
+                    # L1 norm for alpha after max-abs normalization
+                    mins = pred_alph.squeeze().min(dim=1).values.repeat((pred_alph.squeeze().shape[1], 1)).T
+                    maxs = pred_alph.squeeze().max(dim=1).values.repeat((pred_alph.squeeze().shape[1], 1)).T
+                    absmax = torch.stack([mins, maxs]).abs().max(dim=0).values
+                    loss_pred_sparcity = torch.mean(torch.abs(pred_alph.squeeze() / absmax))
                     loss_constraint = 0
                     for k, _ in enumerate(loss_layers_sym, 0):
                        loss_constraint += torch.mean(torch.pow(loss_layers_sym[k], 2))
@@ -446,7 +455,7 @@ class Solver(object):
                     val_losses['pred_spars'].append(self.lambda_pred_sp_loss * loss_pred_sparcity.item())
                     val_losses['sym'].append(self.lambda_sym_loss * loss_constraint.item())
                     val_losses['spars'].append(self.lambda_sp_loss * sparsity_constraint.item())
-                    val_losses['non_zero'].append((torch.sum(pred_alph>1e-3) / (pred_alph.shape[0] * pred_alph.shape[1])).item())
+                    val_losses['non_zero'].append((torch.sum(pred_alph.abs()>1e-5) / (pred_alph.shape[0] * pred_alph.shape[1])).item())
             
             self.all_avg_val_losses['sum'].append(np.mean(val_losses['sum']))
             self.all_avg_val_losses['disc'].append(np.mean(val_losses['disc']))
@@ -455,7 +464,7 @@ class Solver(object):
             self.all_avg_val_losses['spars'].append(np.mean(val_losses['spars'])) 
             self.all_avg_val_losses['non_zero'].append(np.mean(val_losses['non_zero'])) 
             
-            vals = [0, 10, 100, 1000, 2500]
+            vals = [0, 10, 100, 1000, 2500, 5000, 10000]
             for i in vals:
                 if epoch >= i:
                     plot_loss_curves(self.all_avg_train_losses, self.all_avg_val_losses, self.save_path, i, f'train_val_losses_ep{i}.png')

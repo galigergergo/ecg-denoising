@@ -476,7 +476,7 @@ class Solver(object):
             
             save_every = 10        # save model ever N-th epoch
             if not (epoch % save_every) and epoch > 0:
-                self.save_model(epoch, train_losses, val_losses);
+                self.save_model(epoch, train_losses, val_losses)
             
             # decrease learning rate per X epochs after a set number of epochs
             if epoch > self.lr_dec_after:

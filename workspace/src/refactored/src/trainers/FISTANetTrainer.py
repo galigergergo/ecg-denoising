@@ -133,14 +133,14 @@ class FISTANetTrainer():
         #     self.load_model(self.start_epoch)
 
         for epoch in tqdm(range(1 + start_epoch, epochs + start_epoch + 1)):
-            losses_dict = EMPTY_LOSS_DICT.copy()
+            losses_dict = {k: [] for k in EMPTY_LOSS_DICT.keys()}
 
             self.model.train(True)
             for batch_idx, (x_in, y_target, x_0, x_bpdn) in enumerate(train_loader):
                 x_in, x_0, y_target, x_bpdn, Phi = self.preprocess_batch(x_in, y_target, x_0, x_bpdn)
 
                 self.model.zero_grad(set_to_none=True)
-                # self.optimizer.zero_grad()
+                self.optimizer.zero_grad()
 
                 pred_alph, loss_sym, loss_st = self.model(x_0, x_in-y_target, Phi)   # forward
                 pred = x_in - torch.bmm(Phi, pred_alph)
@@ -155,7 +155,7 @@ class FISTANetTrainer():
             for k, v in losses_dict.items():
                 mlflow.log_metric('loss_train_' + k, np.mean(v), step=epoch)
 
-            losses_dict = EMPTY_LOSS_DICT.copy()
+            losses_dict = {k: [] for k in EMPTY_LOSS_DICT.keys()}
             self.model.eval()
             with torch.no_grad():
                 for batch_idy, (x_in, y_target, x_0, x_bpdn) in enumerate(valid_loader):
@@ -171,7 +171,7 @@ class FISTANetTrainer():
                     if not epoch % log_comp_fig_every and not batch_idy:
                         plot_est_comp(x_in, x0_pred, pred, y_target, self.bpdn_est, self.dictionary,
                                       'valid', epoch, batch_idy)
-                        plot_alpha_comp(x_0, pred, x_bpdn, 'valid', epoch, batch_idy)
+                        plot_alpha_comp(x_0, pred_alph, x_bpdn, 'valid', epoch, batch_idy)
             
                 # log average epoch loss values to MLflow
                 for k, v in losses_dict.items():
@@ -185,7 +185,7 @@ class FISTANetTrainer():
 
     def evaluate(self, test_loader, criterion=None, crit_text=None):
         assert not ((type(criterion) != type(None)) ^ (crit_text != None))
-        losses_dict = EMPTY_LOSS_DICT.copy()
+        losses_dict = {k: [] for k in EMPTY_LOSS_DICT.keys()}
         self.model.eval()
         with torch.no_grad():
             for batch_idy, (x_in, y_target, x_0, x_bpdn) in enumerate(test_loader):

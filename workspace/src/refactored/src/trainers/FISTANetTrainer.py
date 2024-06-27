@@ -5,6 +5,7 @@ import mlflow
 import numpy as np
 from tqdm import tqdm
 from src.models.FISTANet import FISTANet
+from src.utils.plotting_utils import plot_est_comp, plot_alpha_comp
 
 
 EMPTY_LOSS_DICT = {
@@ -28,15 +29,14 @@ def l1_loss(pred, target, l1_weight):
 
 
 class FISTANetTrainer():
-    def __init__(self, Phi, args):
-        self.model_name = args['model_name']
+    def __init__(self, Phi, bpdn_est, dictionary, args):
         self.fnet_layer_no = args['fnet_layer_no']
         self.fnet_feature_no = args['fnet_feature_no']
         self.device = args['device']
         self.model = FISTANet(self.fnet_layer_no, self.fnet_feature_no).to(self.device)
         self.Phi = Phi
-        self.data_dir = args['data_dir']
-        self.start_run = args['start_run']
+        self.bpdn_est = bpdn_est
+        self.dictionary = dictionary
         self.lambda_sp_loss = args['lambda_sp_loss']
         self.lambda_pred_sp_loss = args['lambda_pred_sp_loss']
         self.lambda_sym_loss = args['lambda_sym_loss']
@@ -61,15 +61,11 @@ class FISTANetTrainer():
 
         self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=1, gamma=0.9)  # step-wise
 
-        self.save_path = args['save_path']
-        self.multi_gpu = args['multi_gpu']
         self.device = args['device']
-        self.log_interval = args['log_interval']
-        self.test_epoch = args['test_epoch']
         self.train_loss = nn.MSELoss()
 
 
-    def preprocess_batch(self, x_in, y_target, x_0):
+    def preprocess_batch(self, x_in, y_target, x_0, x_bpdn):
         # measured vector (104*1); add channels
         # CIKK: vector b (16) --\/
         x_in = torch.unsqueeze(x_in, 2)
@@ -86,12 +82,14 @@ class FISTANetTrainer():
         x_0 = torch.unsqueeze(x_0, 2)
         # x = Ab initialization
         # x_0 = torch.bmm(Phi.permute(0, 2, 1), x_in)
+
+        x_bpdn = torch.unsqueeze(x_bpdn, 2)
         
         x_0 = x_0.clone().detach().to(device=self.device)
         x_in = x_in.clone().detach().to(device=self.device)
         y_target = y_target.clone().detach().to(device=self.device)
 
-        return x_in, x_0, y_target, Phi
+        return x_in, x_0, y_target, x_bpdn, Phi
     
 
     def loss_dssps(self, pred, y_target, pred_alph, loss_sym, loss_st, losses_dict):
@@ -130,7 +128,7 @@ class FISTANetTrainer():
         return loss, losses_dict
     
     
-    def train(self, train_loader, valid_loader, epochs, start_epoch=0):
+    def train(self, train_loader, valid_loader, epochs, start_epoch=0, log_model_every=10, log_comp_fig_every=10):
         # if start_epoch:
         #     self.load_model(self.start_epoch)
 
@@ -139,7 +137,7 @@ class FISTANetTrainer():
 
             self.model.train(True)
             for batch_idx, (x_in, y_target, x_0, x_bpdn) in enumerate(train_loader):
-                x_in, x_0, y_target, Phi = self.preprocess_batch(x_in, y_target, x_0)
+                x_in, x_0, y_target, x_bpdn, Phi = self.preprocess_batch(x_in, y_target, x_0, x_bpdn)
 
                 self.model.zero_grad(set_to_none=True)
                 # self.optimizer.zero_grad()
@@ -161,7 +159,7 @@ class FISTANetTrainer():
             self.model.eval()
             with torch.no_grad():
                 for batch_idy, (x_in, y_target, x_0, x_bpdn) in enumerate(valid_loader):
-                    x_in, x_0, y_target, Phi = self.preprocess_batch(x_in, y_target, x_0)
+                    x_in, x_0, y_target, x_bpdn, Phi = self.preprocess_batch(x_in, y_target, x_0, x_bpdn)
                     
                     pred_alph, loss_sym, loss_st = self.model(x_0, x_in-y_target, Phi)   # forward
                     pred = x_in - torch.bmm(Phi, pred_alph)
@@ -169,19 +167,20 @@ class FISTANetTrainer():
 
                     loss, losses_dict = self.loss_dssps(pred, y_target, pred_alph, loss_sym, loss_st, losses_dict)
                     
-                    # plot validation batch TODO: save as MLflow artifact
-                    # if not epoch % 10 and not batch_idy:
-                    #     test_plot_est(x_in, x0_pred, pred, y_target, self.save_path, 'valid_ep%d_btch%d.png' % (epoch, batch_idy))
+                    # plot validation batch
+                    if not epoch % log_comp_fig_every and not batch_idy:
+                        plot_est_comp(x_in, x0_pred, pred, y_target, self.bpdn_est, self.dictionary,
+                                      'valid', epoch, batch_idy)
+                        plot_alpha_comp(x_0, pred, x_bpdn, 'valid', epoch, batch_idy)
             
                 # log average epoch loss values to MLflow
                 for k, v in losses_dict.items():
                     mlflow.log_metric('loss_valid_' + k, np.mean(v), step=epoch)
         
-        save_every = 10        # save model ever N-th epoch
-        if not (epoch % save_every) and epoch > 0:
-            # with torch.no_grad():
-            #     model_signature = mlflow.models.infer_signature(X_train.numpy(), self.model(X_train).numpy())
-            mlflow.pytorch.log_model(self.model, artifact_path=f'models/AE_ep{epoch}')#, signature=model_signature)
+            if not (epoch % log_model_every) and epoch > 0:
+                # with torch.no_grad():
+                #     model_signature = mlflow.models.infer_signature(X_train.numpy(), self.model(X_train).numpy())
+                mlflow.pytorch.log_model(self.model, artifact_path=f'models/FISTA-Net_ep{epoch}')#, signature=model_signature)
 
 
     def evaluate(self, test_loader, criterion=None, crit_text=None):
@@ -205,4 +204,4 @@ class FISTANetTrainer():
                 
                 # plot validation batch TODO: save as MLflow artifact
                 # if not epoch % 10 and not batch_idy:
-                #     test_plot_est(x_in, x0_pred, pred, y_target, self.save_path, 'valid_ep%d_btch%d.png' % (epoch, batch_idy))
+                #     plot_est_comp(x_in, x0_pred, pred, y_target, self.save_path, 'valid_ep%d_btch%d.png' % (epoch, batch_idy))

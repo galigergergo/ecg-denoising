@@ -27,12 +27,14 @@ def plot_est_comp(x_in, x0_pred, pred, target, bpdn_est, dictionary, context, ep
 
 
 def plot_alpha_comp(x_0, xnew, x_bpdn, context, epoch, batch_idx):
-    fig, axs = plt.subplots(3, 1, num=1, clear=True)
+    fig, axs = plt.subplots(3, 2, num=1, clear=True)
     fig.set_figheight(900/plt.rcParams['figure.dpi'])
-    fig.set_figwidth(600/plt.rcParams['figure.dpi'])
+    fig.set_figwidth(1300/plt.rcParams['figure.dpi'])
     for ai, i in enumerate([0, 500, 950]):
-        axs[ai].plot(np.linspace(0, 1, x_0[i, :, :].cpu().squeeze().detach().shape[0]), x_0[i, :, :].cpu().squeeze().detach(), label=f'INITIAL (ZEROS: {torch.sum(x_0[i, :, :].abs().cpu().squeeze().detach()<1e-3)} / {x_0[i, :, :].cpu().squeeze().detach().shape[0]} | L1: {torch.mean(torch.abs(x_0[i, :, :]))})', linewidth=0.5)
-        axs[ai].plot(np.linspace(0, 1, x_bpdn[i, :, :].cpu().squeeze().detach().shape[0]), x_bpdn[i, :, :].cpu().squeeze().detach(), label=f'BPDN (ZEROS: {torch.sum(x_bpdn[i, :, :].abs().cpu().squeeze().detach()<1e-3)} / {x_bpdn[i, :, :].cpu().squeeze().detach().shape[0]} | L1: {torch.mean(torch.abs(x_bpdn[i, :, :]))})', linewidth=0.5)
-        axs[ai].plot(np.linspace(0, 1, xnew[i, :, :].cpu().squeeze().detach().shape[0]), xnew[i, :, :].cpu().squeeze().detach(), 'r', label=f'FISTA-Net (ZEROS: {torch.sum(xnew[i, :, :].abs().cpu().squeeze().detach()<1e-3)} / {xnew[i, :, :].cpu().squeeze().detach().shape[0]} | L1: {torch.mean(torch.abs(xnew[i, :, :]))})', linewidth=0.5)
-        axs[ai].legend(prop={'size': 6})
+        for j in range(2):
+            axs[ai, j].plot(np.linspace(0, 1, x_0[i, :, :].cpu().squeeze().detach().shape[0]), x_0[i, :, :].cpu().squeeze().detach(), label=f'INITIAL (ZEROS: {torch.sum(x_0[i, :, :].abs().cpu().squeeze().detach()<1e-3)} / {x_0[i, :, :].cpu().squeeze().detach().shape[0]} | L1: {torch.mean(torch.abs(x_0[i, :, :]))})', linewidth=0.5)
+            axs[ai, j].plot(np.linspace(0, 1, x_bpdn[i, :, :].cpu().squeeze().detach().shape[0]), x_bpdn[i, :, :].cpu().squeeze().detach(), label=f'BPDN (ZEROS: {torch.sum(x_bpdn[i, :, :].abs().cpu().squeeze().detach()<1e-3)} / {x_bpdn[i, :, :].cpu().squeeze().detach().shape[0]} | L1: {torch.mean(torch.abs(x_bpdn[i, :, :]))})', linewidth=0.5)
+            axs[ai, j].plot(np.linspace(0, 1, xnew[i, :, :].cpu().squeeze().detach().shape[0]), xnew[i, :, :].cpu().squeeze().detach(), 'r', label=f'FISTA-Net (ZEROS: {torch.sum(xnew[i, :, :].abs().cpu().squeeze().detach()<1e-3)} / {xnew[i, :, :].cpu().squeeze().detach().shape[0]} | L1: {torch.mean(torch.abs(xnew[i, :, :]))})', linewidth=0.5)
+            axs[ai, j].legend(prop={'size': 6})
+        axs[ai, 1].set_ylim(torch.min(xnew[i, :, :].cpu().squeeze().detach()), torch.max(xnew[i, :, :].cpu().squeeze().detach()))
     mlflow.log_figure(fig, f'plots/alpha-comp/{context}_ep-{epoch}_batch-{batch_idx}.png')

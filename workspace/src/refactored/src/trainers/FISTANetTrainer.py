@@ -29,11 +29,14 @@ def l1_loss(pred, target, l1_weight):
 
 
 class FISTANetTrainer():
-    def __init__(self, Phi, bpdn_est, dictionary, args):
+    def __init__(self, Phi, bpdn_est, dictionary, args, model=None):
         self.fnet_layer_no = args['fnet_layer_no']
         self.fnet_feature_no = args['fnet_feature_no']
         self.device = args['device']
-        self.model = FISTANet(self.fnet_layer_no, self.fnet_feature_no).to(self.device)
+        if type(model) == type(None):
+            self.model = FISTANet(self.fnet_layer_no, self.fnet_feature_no).to(self.device)
+        else:
+            self.model = model
         self.Phi = Phi
         self.bpdn_est = bpdn_est
         self.dictionary = dictionary
@@ -123,7 +126,7 @@ class FISTANetTrainer():
         losses_dict['pred-spars'].append(self.lambda_pred_sp_loss * loss_pred_sparcity.item())
         losses_dict['sym'].append(self.lambda_sym_loss * loss_constraint.item())
         losses_dict['spars'].append(self.lambda_sp_loss * sparsity_constraint.item())
-        losses_dict['non-zero'].append((torch.sum(pred_alph.abs()>1e-5) / (pred_alph.shape[0] * pred_alph.shape[1])).item())
+        losses_dict['non-zero'].append((torch.sum(pred_alph.abs()>1e-3) / (pred_alph.shape[0] * pred_alph.shape[1])).item())
 
         return loss, losses_dict
     
@@ -189,7 +192,7 @@ class FISTANetTrainer():
         self.model.eval()
         with torch.no_grad():
             for batch_idy, (x_in, y_target, x_0, x_bpdn) in enumerate(test_loader):
-                x_in, x_0, y_target, Phi = self.preprocess_batch(x_in, y_target, x_0)
+                x_in, x_0, y_target, x_bpdn, Phi = self.preprocess_batch(x_in, y_target, x_0, x_bpdn)
                 
                 pred_alph, loss_sym, loss_st = self.model(x_0, x_in-y_target, Phi)   # forward
                 pred = x_in - torch.bmm(Phi, pred_alph)
@@ -201,7 +204,17 @@ class FISTANetTrainer():
                 else:
                     loss = criterion(pred, y_target)
                     mlflow.log_metric(f'loss_test_{crit_text}', loss.item())
+
+
+    def infer(self, test_loader):
+        res = []
+        self.model.eval()
+        with torch.no_grad():
+            for batch_idy, (x_in, y_target, x_0, x_bpdn) in enumerate(test_loader):
+                x_in, x_0, y_target, x_bpdn, Phi = self.preprocess_batch(x_in, y_target, x_0, x_bpdn)
                 
-                # plot validation batch TODO: save as MLflow artifact
-                # if not epoch % 10 and not batch_idy:
-                #     plot_est_comp(x_in, x0_pred, pred, y_target, self.save_path, 'valid_ep%d_btch%d.png' % (epoch, batch_idy))
+                pred_alph, loss_sym, loss_st = self.model(x_0, x_in-y_target, Phi)   # forward
+                pred = x_in - torch.bmm(Phi, pred_alph)
+
+                res.append([pred, pred_alph])
+        return res

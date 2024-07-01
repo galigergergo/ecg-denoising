@@ -4,7 +4,6 @@ import torch.nn as nn
 import mlflow
 import numpy as np
 from tqdm import tqdm
-from src.models.FISTANet import FISTANet
 from src.utils.plotting_utils import plot_est_comp, plot_alpha_comp
 
 
@@ -29,26 +28,29 @@ def l1_loss(pred, target, l1_weight):
 
 
 class FISTANetTrainer():
-    def __init__(self, Phi, bpdn_est, dictionary, args, model=None):
-        self.fnet_layer_no = args['fnet_layer_no']
-        self.fnet_feature_no = args['fnet_feature_no']
-        self.device = args['device']
-        if type(model) == type(None):
-            self.model = FISTANet(self.fnet_layer_no, self.fnet_feature_no).to(self.device)
-        else:
-            self.model = model
+    def __init__(self, model, Phi, bpdn_est, dictionary, args):
+        self.model = model
         self.Phi = Phi
         self.bpdn_est = bpdn_est
         self.dictionary = dictionary
+
+        self.device = args['device']
+
+        self.fnet_layer_no = args['fnet_layer_no']
+        self.fnet_feature_no = args['fnet_feature_no']
+        self.load_model_run = args['load_model_run']
+        self.load_model_epoch = args['load_model_epoch']
         self.lambda_sp_loss = args['lambda_sp_loss']
         self.lambda_pred_sp_loss = args['lambda_pred_sp_loss']
         self.lambda_sym_loss = args['lambda_sym_loss']
-        self.lr = args['lr']
         
         self.batch_size = args['batch_size']
-        
+        self.lr = args['lr']        
         self.lr_dec_after = args['lr_dec_after']
         self.lr_dec_every = args['lr_dec_every']
+
+        if self.load_model_epoch != None:
+            self.model = mlflow.pytorch.load_model(f'runs:/{self.load_model_run}/models/FISTA-Net_ep{self.load_model_epoch}')
 
         # set different lr for regularization weights and network weights
         self.optimizer = optim.Adam([
@@ -105,7 +107,7 @@ class FISTANetTrainer():
         mins = pred_alph.squeeze().min(dim=1).values.repeat((pred_alph.squeeze().shape[1], 1)).T
         maxs = pred_alph.squeeze().max(dim=1).values.repeat((pred_alph.squeeze().shape[1], 1)).T
         absmax = torch.stack([mins, maxs]).abs().max(dim=0).values
-        loss_pred_sparcity = torch.mean(torch.abs(pred_alph.squeeze() / absmax))
+        loss_pred_sparcity = torch.square(torch.mean(torch.abs(pred_alph.squeeze() / absmax))**2)
         
         # Symmetry of F and F^{-1} loss
         loss_constraint = 0

@@ -107,7 +107,8 @@ class FISTANetTrainer():
         mins = pred_alph.squeeze().min(dim=1).values.repeat((pred_alph.squeeze().shape[1], 1)).T
         maxs = pred_alph.squeeze().max(dim=1).values.repeat((pred_alph.squeeze().shape[1], 1)).T
         absmax = torch.stack([mins, maxs]).abs().max(dim=0).values
-        loss_pred_sparcity = torch.square(torch.mean(torch.abs(pred_alph.squeeze() / absmax))**2)
+        # loss_pred_sparcity = torch.square(torch.mean(torch.abs(pred_alph.squeeze() / absmax)))
+        loss_pred_sparcity = torch.mean(torch.abs(pred_alph.squeeze() / absmax))
         
         # Symmetry of F and F^{-1} loss
         loss_constraint = 0

@@ -3,7 +3,7 @@
 Created on June 17, 2020
 
 ISTANet(shared network with 4 conv + ReLU) + regularized hyperparameters softplus(w*x + b). 
-The Intention is to make gradient step \mu and thresholding value \theta positive and monotonically decrease.
+The Intention is to make gradient step mu and thresholding value theta positive and monotonically decrease.
 
 @author: XIANG
 """
@@ -46,6 +46,7 @@ class BasicBlock(nn.Module):
         self.conv3_forward = nn.Conv2d(features, features, (3, 3), stride=1, padding=1)
         self.conv4_forward = nn.Conv2d(features, features, (3, 3), stride=1, padding=1)
         self.conv4_forward = nn.Conv2d(features, features, (3, 3), stride=1, padding=1)
+        self.pool_forward = nn.MaxPool2d((2, 1), stride=1, padding=(1, 0))
 
         self.conv1_backward = nn.Conv2d(features, features, (3, 3), stride=1, padding=1)
         self.conv2_backward = nn.Conv2d(features, features, (3, 3), stride=1, padding=1)
@@ -71,8 +72,9 @@ class BasicBlock(nn.Module):
         x = F.relu(x)
         x = self.conv3_forward(x)
         x = F.relu(x)
-        x_forward = self.conv4_forward(x)
-
+        x = self.conv4_forward(x)
+        x_forward = self.pool_forward(x)[:, :, :-1, :]
+        
         # soft-thresholding block
         x_st = torch.mul(torch.sign(x_forward), F.relu(torch.abs(x_forward) - self.Sp(soft_thr)))
 

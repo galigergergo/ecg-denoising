@@ -179,9 +179,13 @@ class FISTANetTrainer():
                                       'valid', epoch, batch_idy)
                         plot_alpha_comp(x_0, pred_alph, x_bpdn, 'valid', epoch, batch_idy)
             
-                # log average epoch loss values to MLflow
+                # log average epoch loss values and model parameters to MLflow
                 for k, v in losses_dict.items():
                     mlflow.log_metric('loss_valid_' + k, np.mean(v), step=epoch)
+                for k, v in {'w_theta': self.model.w_theta.item(), 'b_theta': self.model.b_theta.item(),
+                             'w_mu': self.model.w_mu.item(), 'b_mu': self.model.b_mu.item(),
+                             'w_rho': self.model.w_rho.item(), 'b_rho': self.model.b_rho.item()}.items():
+                    mlflow.log_metric(k, v, step=epoch)
         
             if not (epoch % log_model_every) and epoch > 0:
                 # with torch.no_grad():
